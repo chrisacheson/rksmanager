@@ -53,6 +53,15 @@ class Database:
         # Enable foreign key enforcement
         self._connection.execute("pragma foreign_keys = on;")
 
+    def close(self):
+        """
+        Close the database connection. No other methods of this Database object
+        should be called after calling close().
+
+        """
+        self._connection.close()
+        del self._connection
+
     def get_schema_version(self):
         """
         Retrieve the current schema version from the database.

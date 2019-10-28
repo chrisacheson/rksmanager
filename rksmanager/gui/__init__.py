@@ -23,13 +23,17 @@ class Gui:
         def create_database_callback():
             filename = dialogboxes.create_database_dialog()
             if filename:
+                self._close_database()
                 self._db = rksmanager.database.Database(filename)
+                # TODO: Enable "Close Database" menu command
                 self._db.apply_migrations()
 
         def open_database_callback():
             filename = dialogboxes.open_database_dialog()
             if filename:
+                self._close_database()
                 self._db = rksmanager.database.Database(filename)
+                # TODO: Enable "Close Database" menu command
                 schema_version = self._db.get_schema_version()
                 if schema_version < self._db.expected_schema_version:
                     if dialogboxes.convert_database_dialog():
@@ -46,15 +50,14 @@ class Gui:
                         if success:
                             dialogboxes.convert_database_success_dialog()
                         else:
-                            # TODO: Close database connection and file
+                            self._close_database()
                             dialogboxes.convert_database_failure_dialog()
                     else:
                         # User declined to convert database, so we can't work
                         # with it
-                        # TODO: Close database connection and file
-                        pass
+                        self._close_database()
                 elif schema_version > self._db.expected_schema_version:
-                    # TODO: Close database connection and file
+                    self._close_database()
                     dialogboxes.old_software_dialog()
 
         menu_bar = tk.Menu(window)
@@ -65,3 +68,11 @@ class Gui:
                               command=create_database_callback)
         file_menu.add_command(label="Open Database...",
                               command=open_database_callback)
+
+    # If open, call the close() method on our Database object, and set our
+    # reference to it back to None
+    # TODO: Grey out the "Close Database" menu command
+    def _close_database(self):
+        if self._db:
+            self._db.close()
+            self._db = None
