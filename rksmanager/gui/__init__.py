@@ -11,6 +11,8 @@ class Gui:
     """Builds the GUI and handles all user interaction."""
     def __init__(self):
         self._db = None
+        # For holding references to specific widgets that we need to access
+        # later
         self._widgets = types.SimpleNamespace()
 
     def start(self):
@@ -27,8 +29,7 @@ class Gui:
             if filename:
                 self._close_database()
                 self._db = rksmanager.database.Database(filename)
-                self._widgets.file_menu.entryconfig("Close Database",
-                                                    state=tk.NORMAL)
+                self._database_is_open()
                 self._db.apply_migrations()
 
         def open_database_callback():
@@ -36,8 +37,7 @@ class Gui:
             if filename:
                 self._close_database()
                 self._db = rksmanager.database.Database(filename)
-                self._widgets.file_menu.entryconfig("Close Database",
-                                                    state=tk.NORMAL)
+                self._database_is_open()
                 schema_version = self._db.get_schema_version()
                 if schema_version < self._db.expected_schema_version:
                     if dialogboxes.convert_database_dialog():
@@ -67,9 +67,14 @@ class Gui:
         def close_database_callback():
             self._close_database()
 
+        def create_person_callback():
+            pass
+
         menu_bar = tk.Menu(window)
+        self._widgets.menu_bar = menu_bar
         window.config(menu=menu_bar)
         file_menu = tk.Menu(menu_bar, tearoff=0)
+        self._widgets.file_menu = file_menu
         menu_bar.add_cascade(label="File", menu=file_menu)
         file_menu.add_command(label="Create Database...",
                               command=create_database_callback)
@@ -81,13 +86,29 @@ class Gui:
         file_menu.add_separator()
         file_menu.add_command(label="Exit",
                               command=window.quit)
-        self._widgets.file_menu = file_menu
+        people_menu = tk.Menu(menu_bar, tearoff=0)
+        menu_bar.add_cascade(label="People", menu=people_menu,
+                             state=tk.DISABLED)
+        people_menu.add_command(label="Create new person record...",
+                                command=create_person_callback)
 
-    # If open, call the close() method on our Database object, and set our
-    # reference to it back to None
+    # Close the database if we currently have one open
     def _close_database(self):
         if self._db:
             self._db.close()
             self._db = None
-            self._widgets.file_menu.entryconfig("Close Database",
-                                                state=tk.DISABLED)
+            self._database_is_closed()
+
+    # Change the state of various widgets in response to a database being
+    # opened
+    def _database_is_open(self):
+        self._widgets.file_menu.entryconfig("Close Database",
+                                            state=tk.NORMAL)
+        self._widgets.menu_bar.entryconfig("People", state=tk.NORMAL)
+
+    # Change the state of various widgets in response to a database being
+    # closed
+    def _database_is_closed(self):
+        self._widgets.file_menu.entryconfig("Close Database",
+                                            state=tk.DISABLED)
+        self._widgets.menu_bar.entryconfig("People", state=tk.DISABLED)
