@@ -65,6 +65,7 @@ class Database:
         # Make sure this is actually our database
         app_id = connection.execute("pragma application_id;").fetchone()[0]
         if app_id != self.sqlite_application_id:
+            self.close()
             raise Exception("Not an RKS Manager database")
 
     def close(self):
