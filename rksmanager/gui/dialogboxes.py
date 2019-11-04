@@ -1,9 +1,9 @@
 from PySide2.QtWidgets import QFileDialog, QMessageBox
 
 
-def create_database_dialog(parent):
+def create_or_open_database_dialog(parent):
     """
-    "Create Database" file dialog.
+    "Create or Open Database" file dialog.
 
     Args:
         parent: The parent widget to display the dialog over.
@@ -15,29 +15,10 @@ def create_database_dialog(parent):
     """
     path, _ = QFileDialog.getSaveFileName(
         parent=parent,
-        caption="Create Database",
+        caption="Create or Open Database",
         dir="rks_database.rksm",
         filter="RKS Manager Databases (*.rksm)",
-    )
-    return path
-
-
-def open_database_dialog(parent):
-    """
-    "Open Database" file dialog.
-
-    Args:
-        parent: The parent widget to display the dialog over.
-
-    Returns:
-        The file path chosen by the user as a string, or an empty string if the
-        user cancelled.
-
-    """
-    path, _ = QFileDialog.getOpenFileName(
-        parent=parent,
-        caption="Open Database",
-        filter="RKS Manager Databases (*.rksm)",
+        options=QFileDialog.DontConfirmOverwrite,
     )
     return path
 

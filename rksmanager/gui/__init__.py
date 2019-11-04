@@ -32,15 +32,8 @@ class Gui:
     # Build the menu bar and add it to the specified window
     def _build_menu_bar(self, window):
         # Callbacks
-        def create_db_callback():
-            filename = dialogboxes.create_database_dialog(window)
-            if filename:
-                self._close_database()
-                self._db = rksmanager.database.Database(filename)
-                self._database_is_open()
-
-        def open_db_callback():
-            filename = dialogboxes.open_database_dialog(window)
+        def create_or_open_db_callback():
+            filename = dialogboxes.create_or_open_database_dialog(window)
             if filename:
                 self._close_database()
                 self._db = rksmanager.database.Database(filename)
@@ -87,12 +80,10 @@ class Gui:
 
         menu_bar = window.menuBar()
         file_menu = menu_bar.addMenu("File")
-        create_db_action = QAction(text="Create Database...", parent=window)
-        create_db_action.triggered.connect(create_db_callback)
-        file_menu.addAction(create_db_action)
-        open_db_action = QAction(text="Open Database...", parent=window)
-        open_db_action.triggered.connect(open_db_callback)
-        file_menu.addAction(open_db_action)
+        create_or_open_db_action = QAction(text="Create or Open Database...",
+                                           parent=window)
+        create_or_open_db_action.triggered.connect(create_or_open_db_callback)
+        file_menu.addAction(create_or_open_db_action)
         close_db_action = QAction(text="Close Database", parent=window)
         close_db_action.triggered.connect(close_db_callback)
         close_db_action.setEnabled(False)
