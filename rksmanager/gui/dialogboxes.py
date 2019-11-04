@@ -20,6 +20,8 @@ def create_or_open_database_dialog(parent):
         filter="RKS Manager Databases (*.rksm)",
         options=QFileDialog.DontConfirmOverwrite,
     )
+    if path and not path.endswith(".rksm"):
+        path += ".rksm"
     return path
 
 
