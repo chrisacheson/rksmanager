@@ -106,6 +106,7 @@ class Gui:
     # Close the database if we currently have one open
     def _close_database(self):
         if self._db:
+            self._widgets.tab_holder.close_all_tabs()
             self._db.close()
             self._db = None
             self._database_is_closed()
@@ -142,6 +143,12 @@ class TabHolder(QTabWidget):
         widget = self.widget(index)
         self.removeTab(index)
         widget.deleteLater()
+
+    def close_all_tabs(self):
+        self.clear()
+        for widget in self._tab_ids.values():
+            widget.deleteLater()
+        self._tab_ids = dict()
 
 
 class Label(QLabel):
