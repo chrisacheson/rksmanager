@@ -16,8 +16,8 @@ def create_database_dialog(parent):
     path, _ = QFileDialog.getSaveFileName(
         parent=parent,
         caption="Create Database",
-        dir="rks_database.sqlite",
-        filter="SQLite3 Databases (*.sqlite *.sqlite3 *.db)",
+        dir="rks_database.rksm",
+        filter="RKS Manager Databases (*.rksm)",
     )
     return path
 
@@ -37,15 +37,14 @@ def open_database_dialog(parent):
     path, _ = QFileDialog.getOpenFileName(
         parent=parent,
         caption="Open Database",
-        filter="SQLite3 Databases (*.sqlite *.sqlite3 *.db)",
+        filter="RKS Manager Databases (*.rksm)",
     )
     return path
 
 
 def convert_database_dialog(parent):
     """
-    Ask the user whether to update an old database to the current schema
-    version.
+    Ask the user whether to update an old database to the current version.
 
     Args:
         parent: The parent widget to display the dialog over.
@@ -68,7 +67,7 @@ def convert_database_dialog(parent):
 def convert_database_success_dialog(parent):
     """
     Tell the user that the database was successfully updated to the current
-    schema version.
+    version.
 
     Args:
         parent: The parent widget to display the dialog over.
@@ -80,8 +79,7 @@ def convert_database_success_dialog(parent):
 
 def convert_database_failure_dialog(parent):
     """
-    Tell the user that we failed to update the database to the current schema
-    version.
+    Tell the user that we failed to update the database to the current version.
 
     Args:
         parent: The parent widget to display the dialog over.

@@ -38,7 +38,6 @@ class Gui:
                 self._close_database()
                 self._db = rksmanager.database.Database(filename)
                 self._database_is_open()
-                self._db.apply_migrations()
 
         def open_db_callback():
             filename = dialogboxes.open_database_dialog(window)
@@ -46,8 +45,8 @@ class Gui:
                 self._close_database()
                 self._db = rksmanager.database.Database(filename)
                 self._database_is_open()
-                schema_version = self._db.get_schema_version()
-                if schema_version < self._db.expected_schema_version:
+                version = self._db.get_sqlite_user_version()
+                if version < self._db.expected_sqlite_user_version:
                     if dialogboxes.convert_database_dialog(window):
                         success = False
                         try:
@@ -68,7 +67,7 @@ class Gui:
                         # User declined to convert database, so we can't work
                         # with it
                         self._close_database()
-                elif schema_version > self._db.expected_schema_version:
+                elif version > self._db.expected_sqlite_user_version:
                     self._close_database()
                     dialogboxes.old_software_dialog(window)
 

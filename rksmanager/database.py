@@ -7,7 +7,8 @@ import re
 
 class Database:
     """Passes data to and from the database."""
-    expected_schema_version = 1
+    sqlite_application_id = 0x4ab3c62d
+    expected_sqlite_user_version = 1
 
     def __init__(self, db_filename):
         """
@@ -45,13 +46,26 @@ class Database:
         sqlite3.register_adapter(datetime.time, str)
         sqlite3.register_converter("timeofday_text", convert_timeofday)
 
-        self._connection = sqlite3.connect(
+        connection = sqlite3.connect(
             db_filename,
             detect_types=sqlite3.PARSE_DECLTYPES,
         )
-        self._connection.row_factory = sqlite3.Row
+        self._connection = connection
+        connection.row_factory = sqlite3.Row
         # Enable foreign key enforcement
-        self._connection.execute("pragma foreign_keys = on;")
+        connection.execute("pragma foreign_keys = on;")
+
+        # Check if this is a newly-created database
+        if self.get_sqlite_schema_version() == 0:
+            # Mark database as ours
+            connection.execute("pragma application_id = {:d};"
+                               .format(self.sqlite_application_id))
+            self.apply_migrations()
+
+        # Make sure this is actually our database
+        app_id = connection.execute("pragma application_id;").fetchone()[0]
+        if app_id != self.sqlite_application_id:
+            raise Exception("Not an RKS Manager database")
 
     def close(self):
         """
@@ -62,19 +76,32 @@ class Database:
         self._connection.close()
         del self._connection
 
-    def get_schema_version(self):
+    def get_sqlite_user_version(self):
         """
-        Retrieve the current schema version from the database.
+        Retrieve the current user_version value from the database. We increment
+        this ourselves whenever a new schema migration is applied.
 
         Returns:
-            The schema version as an integer.
+            The user_version value as an integer.
 
         """
         return self._connection.execute("pragma user_version;").fetchone()[0]
 
+    def get_sqlite_schema_version(self):
+        """
+        Retrieve the current schema_version value from the database. Newly
+        created SQLite databases have a schema_version of 0, and the value is
+        incremented each time the schema is modified.
+
+        Returns:
+            The schema_version value as an integer.
+
+        """
+        return self._connection.execute("pragma schema_version;").fetchone()[0]
+
     def apply_migrations(self):
         """
-        Check the current database schema version and run any migration scripts
+        Check the current database user_version and run any migration scripts
         that haven't been run yet.
 
         """
@@ -89,6 +116,8 @@ class Database:
         # rks_manager/migrations/
         migrations_dir = base_project_dir / "migrations"
 
+        expected_version = self.expected_sqlite_user_version
+
         try:
             # Without an explicit begin transaction, python's sqlite3 driver
             # will autocommit DDL statements
@@ -100,13 +129,13 @@ class Database:
                 if not match:
                     continue
                 script_version = int(match.group(1))
-                current_version = self.get_schema_version()
+                current_version = self.get_sqlite_user_version()
                 if script_version <= current_version:
                     continue
                 # Each script version should be exactly 1 greater than the
                 # previous, and none of them should be higher than what the
                 # software expects
-                too_high = (script_version > self.expected_schema_version
+                too_high = (script_version > expected_version
                             or script_version != current_version + 1)
                 if too_high:
                     raise Exception(
@@ -127,8 +156,8 @@ class Database:
                 # string.
                 self._connection.execute("pragma user_version = {:d};"
                                          .format(script_version))
-            if self.get_schema_version() < self.expected_schema_version:
-                raise Exception("Schema version lower than expected after"
+            if self.get_sqlite_user_version() < expected_version:
+                raise Exception("SQLite user_version lower than expected after"
                                 " running migration scripts.")
         except Exception:
             self._connection.rollback()
