@@ -93,6 +93,11 @@ class Gui:
         people_menu.addAction(create_person_action)
 
     def edit_new_person(self):
+        """
+        Open or focus the Create Person tab. Called when the "Create new person
+        record" menu item is selected.
+
+        """
         tab_id = "create_person"
         create_person_tab = self._widgets.tab_holder.get_tab(tab_id)
         if create_person_tab:
@@ -109,6 +114,15 @@ class Gui:
                                             "Create Person", tab_id)
 
     def save_new_person(self, editor):
+        """
+        Insert a new person record into the database from the data in the
+        Create Person tab. Called when the tab's Save button is clicked. Closes
+        the tab afterwards.
+
+        Args:
+            editor: The PersonEditor widget containing the data.
+
+        """
         self._db.create_person(editor.get_values())
         # TODO: Open person details in place of editor
         self._widgets.tab_holder.close_tab(editor)
@@ -136,6 +150,11 @@ class Gui:
 
 
 class TabHolder(QTabWidget):
+    """
+    A QTabWidget with some extra methods. Used as the central widget of our
+    main window.
+
+    """
     def __init__(self):
         super().__init__()
         self.setTabsClosable(True)
@@ -144,14 +163,42 @@ class TabHolder(QTabWidget):
         self._tab_ids_inverse = {}
 
     def addTab(self, widget, label, tab_id):
+        """
+        Create a new tab. Overrides QTabWidget's addTab() method.
+
+        Args:
+            widget: The widget to be displayed by the tab.
+            label: The name to display on the tab.
+            tab_id: Unique ID string used to refer to the tab later.
+
+        """
         self._tab_ids[tab_id] = widget
         self._tab_ids_inverse[widget] = tab_id
         super().addTab(widget, label)
 
     def get_tab(self, tab_id):
+        """
+        Retrieve the tab with the specified ID.
+
+        Args:
+            tab_id: The ID of the tab to get.
+
+        Returns:
+            The tab with the specified ID, or None if there is no such tab.
+
+        """
         self._tab_ids.get(tab_id)
 
     def close_tab(self, index_or_widget):
+        """
+        Close the tab at the specified index or with the specified page widget,
+        and delete the widget. Called when the tab's close button is clicked.
+
+        Args:
+            index_or_widget: The index of the tab to close, or the page widget
+                corresponding to the tab.
+
+        """
         if isinstance(index_or_widget, int):
             index = index_or_widget
             widget = self.widget(index)
@@ -165,6 +212,7 @@ class TabHolder(QTabWidget):
         widget.deleteLater()
 
     def close_all_tabs(self):
+        """Close all tabs and delete all page widgets."""
         self.clear()
         for widget in self._tab_ids.values():
             widget.deleteLater()
@@ -173,11 +221,18 @@ class TabHolder(QTabWidget):
 
 
 class ValuePropertyMixin:
+    """
+    Add a value property to any widget inheriting this. Widgets that use
+    methods other than text() and setText() to get and set their value should
+    set the getter_method and setter_method attributes appropriately.
+
+    """
     getter_method = "text"
     setter_method = "setText"
 
     @property
     def value(self):
+        """Get or set the widget's current value."""
         getter = getattr(self, self.getter_method)
         return getter()
 
@@ -201,6 +256,19 @@ class TextEdit(ValuePropertyMixin, QTextEdit):
 
 
 class BaseEditor(QWidget):
+    """
+    Generic record editor widget. Subclasses should set the fields attribute to
+    a sequence of 3-tuples, each containing a field ID, Label, and widget
+    class. For example:
+
+    fields = (
+        ("person_id", "Person ID", Label),
+        ("first_name_or_nickname", "First name or nickname", LineEdit),
+        ("pronouns", "Pronouns", LineEdit),
+        ("notes", "Notes", TextEdit),
+    )
+
+    """
     def __init__(self):
         self._data_widgets = {}
         super().__init__()
@@ -216,6 +284,14 @@ class BaseEditor(QWidget):
         self.setLayout(layout)
 
     def get_values(self):
+        """
+        Get the current values of all of the editor's data widgets.
+
+        Returns:
+            A dictionary of field_id and widget value pairs, with any empty
+            string values converted to None.
+
+        """
         values = dict()
         for field_id, widget in self._data_widgets.items():
             value = widget.value
@@ -225,6 +301,13 @@ class BaseEditor(QWidget):
         return values
 
     def set_values(self, values):
+        """
+        Set the current values of all of the editor's data widgets.
+
+        Args:
+            values: A dictionary of field_id and widget value pairs.
+
+        """
         keys = self._data_widgets.keys() & values.keys()
         for key in keys:
             self._data_widgets[key].value = values[key]
