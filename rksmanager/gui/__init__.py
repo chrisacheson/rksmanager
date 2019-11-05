@@ -202,16 +202,9 @@ class TextEdit(QTextEdit):
         self.setPlainText(value)
 
 
-class PersonEditor(QWidget):
-    fields = (
-        ("person_id", "Person ID", Label),
-        ("first_name_or_nickname", "First name or nickname", LineEdit),
-        ("pronouns", "Pronouns", LineEdit),
-        ("notes", "Notes", TextEdit),
-    )
-
+class BaseEditor(QWidget):
     def __init__(self):
-        self._data_widgets = dict()
+        self._data_widgets = {}
         super().__init__()
         layout = QGridLayout()
         for i, field in enumerate(self.fields):
@@ -237,3 +230,12 @@ class PersonEditor(QWidget):
         keys = self._data_widgets.keys() & values.keys()
         for key in keys:
             self._data_widgets[key].value = values[key]
+
+
+class PersonEditor(BaseEditor):
+    fields = (
+        ("person_id", "Person ID", Label),
+        ("first_name_or_nickname", "First name or nickname", LineEdit),
+        ("pronouns", "Pronouns", LineEdit),
+        ("notes", "Notes", TextEdit),
+    )
