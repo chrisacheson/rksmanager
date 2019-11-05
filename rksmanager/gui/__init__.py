@@ -172,34 +172,32 @@ class TabHolder(QTabWidget):
         self._tab_ids_inverse = {}
 
 
-class Label(QLabel):
+class ValuePropertyMixin:
+    getter_method = "text"
+    setter_method = "setText"
+
     @property
     def value(self):
-        return self.text()
+        getter = getattr(self, self.getter_method)
+        return getter()
 
     @value.setter
     def value(self, value):
-        self.setText(value)
+        setter = getattr(self, self.setter_method)
+        setter(value)
 
 
-class LineEdit(QLineEdit):
-    @property
-    def value(self):
-        return self.text()
-
-    @value.setter
-    def value(self, value):
-        self.setText(value)
+class Label(ValuePropertyMixin, QLabel):
+    pass
 
 
-class TextEdit(QTextEdit):
-    @property
-    def value(self):
-        return self.toPlainText()
+class LineEdit(ValuePropertyMixin, QLineEdit):
+    pass
 
-    @value.setter
-    def value(self, value):
-        self.setPlainText(value)
+
+class TextEdit(ValuePropertyMixin, QTextEdit):
+    getter_method = "toPlainText"
+    setter_method = "setPlainText"
 
 
 class BaseEditor(QWidget):
