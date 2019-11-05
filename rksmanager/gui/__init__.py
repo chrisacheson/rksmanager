@@ -1,5 +1,6 @@
 import traceback
 import types
+import sys
 
 from PySide2.QtWidgets import (QApplication, QMainWindow, QAction, QTabWidget,
                                QWidget, QGridLayout, QLabel, QLineEdit,
@@ -27,70 +28,99 @@ class Gui:
         self._widgets.tab_holder = tab_holder
         main_window.setCentralWidget(tab_holder)
         main_window.show()
+        if len(sys.argv) > 1:
+            self.create_or_open_database(sys.argv[1])
         qt_app.exec_()
 
     # Build the menu bar and add it to the specified window
     def _build_menu_bar(self, window):
-        # Callbacks
-        def create_or_open_db_callback():
-            filename = dialogboxes.create_or_open_database_dialog(window)
-            if filename:
-                self._close_database()
-                self._db = rksmanager.database.Database(filename)
-                self._database_is_open()
-                version = self._db.get_sqlite_user_version()
-                if version < self._db.expected_sqlite_user_version:
-                    if dialogboxes.convert_database_dialog(window):
-                        success = False
-                        try:
-                            self._db.apply_migrations()
-                            success = True
-                        except Exception as e:
-                            traceback.print_exception(
-                                etype=type(e),
-                                value=e,
-                                tb=e.__traceback__,
-                            )
-                        if success:
-                            dialogboxes.convert_database_success_dialog(window)
-                        else:
-                            self._close_database()
-                            dialogboxes.convert_database_failure_dialog(window)
-                    else:
-                        # User declined to convert database, so we can't work
-                        # with it
-                        self._close_database()
-                elif version > self._db.expected_sqlite_user_version:
-                    self._close_database()
-                    dialogboxes.old_software_dialog(window)
-
-        def close_db_callback():
-            self._close_database()
-
         menu_bar = window.menuBar()
         file_menu = menu_bar.addMenu("File")
+
         create_or_open_db_action = QAction(text="Create or Open Database...",
                                            parent=window)
-        create_or_open_db_action.triggered.connect(create_or_open_db_callback)
+        create_or_open_db_action.triggered.connect(
+            lambda x: self.create_or_open_database()
+        )
         file_menu.addAction(create_or_open_db_action)
+
         close_db_action = QAction(text="Close Database", parent=window)
-        close_db_action.triggered.connect(close_db_callback)
+        close_db_action.triggered.connect(self.close_database)
         close_db_action.setEnabled(False)
         self._widgets.close_db_action = close_db_action
         file_menu.addAction(close_db_action)
+
         file_menu.addSeparator()
         exit_action = QAction(text="Exit", parent=window)
         exit_action.triggered.connect(self._widgets.main_window.close)
         file_menu.addAction(exit_action)
+
         people_menu = menu_bar.addMenu("People")
         people_menu.setEnabled(False)
         # TODO: Disable the individual menu items too? Can they be triggered by
         # keyboard shortcuts when the menu is disabled?
         self._widgets.people_menu = people_menu
+
         create_person_action = QAction(text="Create new person record...",
                                        parent=window)
         create_person_action.triggered.connect(self.edit_new_person)
         people_menu.addAction(create_person_action)
+
+    def create_or_open_database(self, filename=None):
+        """
+        Create or open a database. Called by the "Create or Open Database" menu
+        item.
+
+        Args:
+            filename: Optional filename of the database to create/open. If
+                unspecified, a file dialog will be opened so that the user can
+                select a file or choose a filename.
+
+        """
+        window = self._widgets.main_window
+        if not filename:
+            filename = dialogboxes.create_or_open_database_dialog(window)
+        if filename:
+            self.close_database()
+            self._db = rksmanager.database.Database(filename)
+            self._database_is_open()
+            version = self._db.get_sqlite_user_version()
+            if version < self._db.expected_sqlite_user_version:
+                if dialogboxes.convert_database_dialog(window):
+                    success = False
+                    try:
+                        self._db.apply_migrations()
+                        success = True
+                    except Exception as e:
+                        traceback.print_exception(
+                            etype=type(e),
+                            value=e,
+                            tb=e.__traceback__,
+                        )
+                    if success:
+                        dialogboxes.convert_database_success_dialog(window)
+                    else:
+                        self.close_database()
+                        dialogboxes.convert_database_failure_dialog(window)
+                else:
+                    # User declined to convert database, so we can't work with
+                    # it
+                    self.close_database()
+            elif version > self._db.expected_sqlite_user_version:
+                self.close_database()
+                dialogboxes.old_software_dialog(window)
+
+    def close_database(self):
+        """
+        Close the database if we currently have one open. Called by the "Close
+        Database" menu item.
+
+        """
+        if self._db:
+            self._widgets.tab_holder.close_all_tabs()
+            self._db.close()
+            self._db = None
+            self._database_is_closed()
 
     def edit_new_person(self):
         """
@@ -126,14 +156,6 @@ class Gui:
         self._db.create_person(editor.get_values())
         # TODO: Open person details in place of editor
         self._widgets.tab_holder.close_tab(editor)
-
-    # Close the database if we currently have one open
-    def _close_database(self):
-        if self._db:
-            self._widgets.tab_holder.close_all_tabs()
-            self._db.close()
-            self._db = None
-            self._database_is_closed()
 
     # Change the state of various widgets in response to a database being
     # opened
