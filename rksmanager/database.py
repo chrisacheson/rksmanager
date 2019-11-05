@@ -165,3 +165,32 @@ class Database:
             raise
 
         self._connection.commit()
+
+    def create_person(self, data):
+        """
+        Insert a new person into the database.
+
+        Args:
+            data: A dictionary of values to be inserted.
+
+        Returns:
+            The id of the new person as an integer.
+
+        """
+        with self._connection:
+            cursor = self._connection.cursor()
+            cursor.execute(
+                """
+                insert into people (
+                    first_name_or_nickname
+                    , pronouns
+                    , notes
+                ) values (
+                    :first_name_or_nickname
+                    , :pronouns
+                    , :notes
+                )
+                """,
+                data,
+            )
+            return cursor.lastrowid

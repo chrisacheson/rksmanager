@@ -67,17 +67,6 @@ class Gui:
         def close_db_callback():
             self._close_database()
 
-        def create_person_callback():
-            tab_id = "create_person"
-            create_person_tab = self._widgets.tab_holder.get_tab(tab_id)
-            if create_person_tab:
-                self._widgets.tab_holder.setCurrentWidget(create_person_tab)
-            else:
-                create_person_tab = PersonEditor()
-                create_person_tab.set_values({"person_id": "Not assigned yet"})
-                self._widgets.tab_holder.addTab(create_person_tab,
-                                                "Create Person", tab_id)
-
         menu_bar = window.menuBar()
         file_menu = menu_bar.addMenu("File")
         create_or_open_db_action = QAction(text="Create or Open Database...",
@@ -100,8 +89,29 @@ class Gui:
         self._widgets.people_menu = people_menu
         create_person_action = QAction(text="Create new person record...",
                                        parent=window)
-        create_person_action.triggered.connect(create_person_callback)
+        create_person_action.triggered.connect(self.edit_new_person)
         people_menu.addAction(create_person_action)
+
+    def edit_new_person(self):
+        tab_id = "create_person"
+        create_person_tab = self._widgets.tab_holder.get_tab(tab_id)
+        if create_person_tab:
+            self._widgets.tab_holder.setCurrentWidget(create_person_tab)
+        else:
+            create_person_tab = PersonEditor()
+            create_person_tab.set_values({"person_id": "Not assigned yet"})
+
+            def save():
+                self.save_new_person(create_person_tab)
+            create_person_tab.save_button.clicked.connect(save)
+
+            self._widgets.tab_holder.addTab(create_person_tab,
+                                            "Create Person", tab_id)
+
+    def save_new_person(self, editor):
+        self._db.create_person(editor.get_values())
+        # TODO: Open person details in place of editor
+        self._widgets.tab_holder.close_tab(editor)
 
     # Close the database if we currently have one open
     def _close_database(self):
@@ -130,17 +140,27 @@ class TabHolder(QTabWidget):
         super().__init__()
         self.setTabsClosable(True)
         self.tabCloseRequested.connect(self.close_tab)
-        self._tab_ids = dict()
+        self._tab_ids = {}
+        self._tab_ids_inverse = {}
 
     def addTab(self, widget, label, tab_id):
         self._tab_ids[tab_id] = widget
+        self._tab_ids_inverse[widget] = tab_id
         super().addTab(widget, label)
 
     def get_tab(self, tab_id):
         self._tab_ids.get(tab_id)
 
-    def close_tab(self, index):
-        widget = self.widget(index)
+    def close_tab(self, index_or_widget):
+        if isinstance(index_or_widget, int):
+            index = index_or_widget
+            widget = self.widget(index)
+        else:
+            widget = index_or_widget
+            index = self.indexOf(widget)
+        tab_id = self._tab_ids_inverse[widget]
+        del self._tab_ids[tab_id]
+        del self._tab_ids_inverse[widget]
         self.removeTab(index)
         widget.deleteLater()
 
@@ -148,7 +168,8 @@ class TabHolder(QTabWidget):
         self.clear()
         for widget in self._tab_ids.values():
             widget.deleteLater()
-        self._tab_ids = dict()
+        self._tab_ids = {}
+        self._tab_ids_inverse = {}
 
 
 class Label(QLabel):
@@ -206,7 +227,10 @@ class PersonEditor(QWidget):
     def get_values(self):
         values = dict()
         for field_id, widget in self._data_widgets.items():
-            values[field_id] = widget.value
+            value = widget.value
+            if value == "":
+                value = None
+            values[field_id] = value
         return values
 
     def set_values(self, values):
