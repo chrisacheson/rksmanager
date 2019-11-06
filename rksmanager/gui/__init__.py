@@ -479,6 +479,46 @@ class BaseEditor(BaseDetailsOrEditor):
         return values
 
 
+class BaseListModel(QAbstractTableModel):
+    def __init__(self):
+        self._data = []
+        super().__init__()
+
+    def populate(self, data):
+        self._data = data
+        self.layoutChanged.emit()
+
+    def rowCount(self, index):
+        return len(self._data)
+
+    def columnCount(self, index):
+        return len(self.headers)
+
+    def data(self, index, role):
+        if role == Qt.DisplayRole:
+            row = self._data[index.row()]
+            return row[index.column()]
+
+    def headerData(self, section, orientation, role):
+        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
+                return self.headers[section]
+
+
+class BaseList(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.model = self.model_class()
+        self.proxy_model = QSortFilterProxyModel()
+        self.proxy_model.setSourceModel(self.model)
+        layout = QVBoxLayout()
+        self.table_view = QTableView()
+        self.table_view.setModel(self.proxy_model)
+        self.table_view.setSortingEnabled(True)
+        self.table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
+        layout.addWidget(self.table_view)
+        self.setLayout(layout)
+
+
 class PersonDetails(BaseDetails):
     fields = (
         ("person_id", "Person ID"),
@@ -497,43 +537,9 @@ class PersonEditor(BaseEditor):
     )
 
 
-class PersonList(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.model = PersonListModel()
-        self.proxy_model = QSortFilterProxyModel()
-        self.proxy_model.setSourceModel(self.model)
-        layout = QVBoxLayout()
-        self.table_view = QTableView()
-        self.table_view.setModel(self.proxy_model)
-        self.table_view.setSortingEnabled(True)
-        self.table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
-        layout.addWidget(self.table_view)
-        self.setLayout(layout)
-
-
-class PersonListModel(QAbstractTableModel):
+class PersonListModel(BaseListModel):
     headers = ("ID", "Name", "Pronouns", "Notes")
 
-    def __init__(self):
-        self._data = []
-        super().__init__()
 
-    def populate(self, data):
-        self._data = data
-        self.layoutChanged.emit()
-
-    def rowCount(self, index):
-        return len(self._data)
-
-    def columnCount(self, index):
-        return 4
-
-    def data(self, index, role):
-        if role == Qt.DisplayRole:
-            row = self._data[index.row()]
-            return row[index.column()]
-
-    def headerData(self, section, orientation, role):
-        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
-                return self.headers[section]
+class PersonList(BaseList):
+    model_class = PersonListModel
