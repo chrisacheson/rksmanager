@@ -182,7 +182,7 @@ class Database:
         with self._connection:
             if person_id:
                 data["person_id"] = person_id
-                return self._connection.execute(
+                self._connection.execute(
                     """
                     update people
                     set first_name_or_nickname = :first_name_or_nickname
@@ -191,7 +191,8 @@ class Database:
                     where id = :person_id
                     """,
                     data,
-                ).lastrowid
+                )
+                return person_id
             else:
                 return self._connection.execute(
                     """
@@ -231,3 +232,15 @@ class Database:
                 """,
                 (person_id,),
             ).fetchone()
+
+    def get_people(self):
+        with self._connection:
+            return self._connection.execute(
+                """
+                select id
+                    , first_name_or_nickname
+                    , pronouns
+                    , notes
+                from people
+                """
+            ).fetchall()

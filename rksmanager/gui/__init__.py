@@ -4,7 +4,9 @@ import sys
 
 from PySide2.QtWidgets import (QApplication, QMainWindow, QAction, QTabWidget,
                                QWidget, QGridLayout, QLabel, QLineEdit,
-                               QTextEdit, QPushButton)
+                               QTextEdit, QPushButton, QTableView, QVBoxLayout,
+                               QAbstractItemView)
+from PySide2.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel
 
 import rksmanager.database
 from . import dialogboxes
@@ -27,6 +29,7 @@ class Gui:
         tab_holder = TabHolder()
         self._widgets.tab_holder = tab_holder
         main_window.setCentralWidget(tab_holder)
+        main_window.setGeometry(0, 0, 1000, 700)
         main_window.show()
         if len(sys.argv) > 1:
             self.create_or_open_database(sys.argv[1])
@@ -65,6 +68,10 @@ class Gui:
                                        parent=window)
         create_person_action.triggered.connect(self.edit_person)
         people_menu.addAction(create_person_action)
+
+        view_people_action = QAction(text="View People", parent=window)
+        view_people_action.triggered.connect(self.view_people)
+        people_menu.addAction(view_people_action)
 
     def create_or_open_database(self, filename=None):
         """
@@ -135,9 +142,7 @@ class Gui:
         """
         tab_id = "person_details_{:d}".format(person_id)
         tab = self._widgets.tab_holder.get_tab(tab_id)
-        if tab:
-            self._widgets.tab_holder.setCurrentWidget(tab)
-        else:
+        if not tab:
             person_data = self._db.get_person(person_id)
             tab = PersonDetails()
             tab.set_values(person_data)
@@ -149,6 +154,7 @@ class Gui:
 
             title = "Person Details ({:d})".format(person_id)
             self._widgets.tab_holder.addTab(tab, title, tab_id, before)
+        self._widgets.tab_holder.setCurrentWidget(tab)
 
     def edit_person(self, person_id=None, before=None):
         """
@@ -173,9 +179,7 @@ class Gui:
             title = "Create Person"
             person_data = {"person_id": "Not assigned yet"}
         tab = self._widgets.tab_holder.get_tab(tab_id)
-        if tab:
-            self._widgets.tab_holder.setCurrentWidget(tab)
-        else:
+        if not tab:
             tab = PersonEditor()
             tab.set_values(person_data)
 
@@ -191,6 +195,7 @@ class Gui:
             tab.save_button.clicked.connect(save)
 
             self._widgets.tab_holder.addTab(tab, title, tab_id, before)
+        self._widgets.tab_holder.setCurrentWidget(tab)
 
     def save_person(self, editor, person_id=None):
         """
@@ -204,9 +209,27 @@ class Gui:
                 person will be created.
 
         """
+        print(person_id)
         person_id = self._db.save_person(editor.get_values(), person_id)
+        print(person_id)
         self.view_person_details(person_id, editor)
         self._widgets.tab_holder.close_tab(editor)
+
+    def view_people(self):
+        tab_id = "view_people"
+        tab = self._widgets.tab_holder.get_tab(tab_id)
+        if not tab:
+            tab = PersonList()
+
+            def details(index):
+                id_index = index.siblingAtColumn(0)
+                person_id = tab.proxy_model.itemData(id_index)[0]
+                self.view_person_details(person_id)
+            tab.table_view.doubleClicked.connect(details)
+
+            tab.model.populate(self._db.get_people())
+            self._widgets.tab_holder.addTab(tab, "People", tab_id)
+        self._widgets.tab_holder.setCurrentWidget(tab)
 
     # Change the state of various widgets in response to a database being
     # opened
@@ -230,6 +253,7 @@ class TabHolder(QTabWidget):
     """
     def __init__(self):
         super().__init__()
+        self.setMovable(True)
         self.setTabsClosable(True)
         self.tabCloseRequested.connect(self.close_tab)
         self._tab_ids = {}
@@ -281,7 +305,7 @@ class TabHolder(QTabWidget):
             The tab with the specified ID, or None if there is no such tab.
 
         """
-        self._tab_ids.get(tab_id)
+        return self._tab_ids.get(tab_id)
 
     def close_tab(self, index_or_widget):
         """
@@ -348,7 +372,9 @@ class ValuePropertyMixin:
 
 
 class Label(ValuePropertyMixin, QLabel):
-    pass
+    def __init__(self):
+        super().__init__()
+        self.setWordWrap(True)
 
 
 class LineEdit(ValuePropertyMixin, QLineEdit):
@@ -469,3 +495,45 @@ class PersonEditor(BaseEditor):
         ("pronouns", "Pronouns", LineEdit),
         ("notes", "Notes", TextEdit),
     )
+
+
+class PersonList(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.model = PersonListModel()
+        self.proxy_model = QSortFilterProxyModel()
+        self.proxy_model.setSourceModel(self.model)
+        layout = QVBoxLayout()
+        self.table_view = QTableView()
+        self.table_view.setModel(self.proxy_model)
+        self.table_view.setSortingEnabled(True)
+        self.table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
+        layout.addWidget(self.table_view)
+        self.setLayout(layout)
+
+
+class PersonListModel(QAbstractTableModel):
+    headers = ("ID", "Name", "Pronouns", "Notes")
+
+    def __init__(self):
+        self._data = []
+        super().__init__()
+
+    def populate(self, data):
+        self._data = data
+        self.layoutChanged.emit()
+
+    def rowCount(self, index):
+        return len(self._data)
+
+    def columnCount(self, index):
+        return 4
+
+    def data(self, index, role):
+        if role == Qt.DisplayRole:
+            row = self._data[index.row()]
+            return row[index.column()]
+
+    def headerData(self, section, orientation, role):
+        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
+                return self.headers[section]
