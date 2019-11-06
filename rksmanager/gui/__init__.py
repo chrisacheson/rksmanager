@@ -372,7 +372,11 @@ class BaseDetailsOrEditor(QWidget):
             else:
                 field_id, label = field
                 widget_type = Label
-            layout.addWidget(QLabel(label), i, 0)
+            label_widget = QLabel(label)
+            font = label_widget.font()
+            font.setBold(True)
+            label_widget.setFont(font)
+            layout.addWidget(label_widget, i, 0)
             widget = widget_type()
             layout.addWidget(widget, i, 1)
             self._data_widgets[field_id] = widget
@@ -452,7 +456,7 @@ class BaseEditor(BaseDetailsOrEditor):
 class PersonDetails(BaseDetails):
     fields = (
         ("person_id", "Person ID"),
-        ("first_name_or_nickname", "First name or nickname"),
+        ("first_name_or_nickname", "First name\nor nickname"),
         ("pronouns", "Pronouns"),
         ("notes", "Notes"),
     )
@@ -461,7 +465,7 @@ class PersonDetails(BaseDetails):
 class PersonEditor(BaseEditor):
     fields = (
         ("person_id", "Person ID", Label),
-        ("first_name_or_nickname", "First name or nickname", LineEdit),
+        ("first_name_or_nickname", "First name\nor nickname", LineEdit),
         ("pronouns", "Pronouns", LineEdit),
         ("notes", "Notes", TextEdit),
     )
