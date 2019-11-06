@@ -166,31 +166,68 @@ class Database:
 
         self._connection.commit()
 
-    def create_person(self, data):
+    def save_person(self, data, person_id=None):
         """
-        Insert a new person into the database.
+        Insert a new person into the database or update the specified person.
 
         Args:
-            data: A dictionary of values to be inserted.
+            data: A dictionary of values to be inserted/updated.
+            person_id: Optional ID of the person to update. If unspecified, a
+                new person will be inserted.
 
         Returns:
-            The id of the new person as an integer.
+            The id of the person as an integer.
 
         """
         with self._connection:
-            cursor = self._connection.cursor()
-            cursor.execute(
+            if person_id:
+                data["person_id"] = person_id
+                return self._connection.execute(
+                    """
+                    update people
+                    set first_name_or_nickname = :first_name_or_nickname
+                        , pronouns = :pronouns
+                        , notes = :notes
+                    where id = :person_id
+                    """,
+                    data,
+                ).lastrowid
+            else:
+                return self._connection.execute(
+                    """
+                    insert into people (
+                        first_name_or_nickname
+                        , pronouns
+                        , notes
+                    ) values (
+                        :first_name_or_nickname
+                        , :pronouns
+                        , :notes
+                    )
+                    """,
+                    data,
+                ).lastrowid
+
+    def get_person(self, person_id):
+        """
+        Retrieve the specified person from the database.
+
+        Args:
+            person_id: The ID of the person.
+
+        Returns:
+            The person's data as an sqlite3.Row object.
+
+        """
+        with self._connection:
+            return self._connection.execute(
                 """
-                insert into people (
-                    first_name_or_nickname
+                select id as person_id
+                    , first_name_or_nickname
                     , pronouns
                     , notes
-                ) values (
-                    :first_name_or_nickname
-                    , :pronouns
-                    , :notes
-                )
+                from people
+                where id = ?
                 """,
-                data,
-            )
-            return cursor.lastrowid
+                (person_id,),
+            ).fetchone()

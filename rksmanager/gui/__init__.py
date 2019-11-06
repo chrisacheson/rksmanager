@@ -63,7 +63,7 @@ class Gui:
 
         create_person_action = QAction(text="Create new person record...",
                                        parent=window)
-        create_person_action.triggered.connect(self.edit_new_person)
+        create_person_action.triggered.connect(self.edit_person)
         people_menu.addAction(create_person_action)
 
     def create_or_open_database(self, filename=None):
@@ -122,39 +122,90 @@ class Gui:
             self._db = None
             self._database_is_closed()
 
-    def edit_new_person(self):
+    def view_person_details(self, person_id, before=None):
         """
-        Open or focus the Create Person tab. Called when the "Create new person
-        record" menu item is selected.
+        Open or focus the Person Details tab for the specified person. Called
+        after the user clicks save in the Create Person tab.
+
+        Args:
+            person_id: The ID of the person to show the details of.
+            before: Optional ID or page widget of the tab to insert this tab in
+                front of.
 
         """
-        tab_id = "create_person"
-        create_person_tab = self._widgets.tab_holder.get_tab(tab_id)
-        if create_person_tab:
-            self._widgets.tab_holder.setCurrentWidget(create_person_tab)
+        tab_id = "person_details_{:d}".format(person_id)
+        tab = self._widgets.tab_holder.get_tab(tab_id)
+        if tab:
+            self._widgets.tab_holder.setCurrentWidget(tab)
         else:
-            create_person_tab = PersonEditor()
-            create_person_tab.set_values({"person_id": "Not assigned yet"})
+            person_data = self._db.get_person(person_id)
+            tab = PersonDetails()
+            tab.set_values(person_data)
+
+            def edit():
+                self.edit_person(person_id)
+                self._widgets.tab_holder.close_tab(tab)
+            tab.edit_button.clicked.connect(edit)
+
+            title = "Person Details ({:d})".format(person_id)
+            self._widgets.tab_holder.addTab(tab, title, tab_id, before)
+
+    def edit_person(self, person_id=None, before=None):
+        """
+        Open or focus the a PersonEditor tab for the specified person or for a
+        new person. Called when the "Create new person record" menu item is
+        selected, or when the Edit button is clicked on a Person Details tab.
+
+        Args:
+            person_id: Optional ID of the person to edit. If unspecified the
+                editor will create a new person when the save button is
+                clicked.
+            before: Optional ID or page widget of the tab to insert this tab in
+                front of.
+
+        """
+        if person_id:
+            tab_id = "edit_person_{:d}".format(person_id)
+            title = "Edit Person ({:d})".format(person_id)
+            person_data = self._db.get_person(person_id)
+        else:
+            tab_id = "create_person"
+            title = "Create Person"
+            person_data = {"person_id": "Not assigned yet"}
+        tab = self._widgets.tab_holder.get_tab(tab_id)
+        if tab:
+            self._widgets.tab_holder.setCurrentWidget(tab)
+        else:
+            tab = PersonEditor()
+            tab.set_values(person_data)
+
+            def cancel():
+                if person_id:
+                    # Go "back" to the details of the person we're editing
+                    self.view_person_details(person_id, tab)
+                self._widgets.tab_holder.close_tab(tab)
+            tab.cancel_button.clicked.connect(cancel)
 
             def save():
-                self.save_new_person(create_person_tab)
-            create_person_tab.save_button.clicked.connect(save)
+                self.save_person(tab, person_id)
+            tab.save_button.clicked.connect(save)
 
-            self._widgets.tab_holder.addTab(create_person_tab,
-                                            "Create Person", tab_id)
+            self._widgets.tab_holder.addTab(tab, title, tab_id, before)
 
-    def save_new_person(self, editor):
+    def save_person(self, editor, person_id=None):
         """
-        Insert a new person record into the database from the data in the
-        Create Person tab. Called when the tab's Save button is clicked. Closes
-        the tab afterwards.
+        Save the data in a PersonEditor to the database. Called when the tab's
+        Save button is clicked. Closes the tab afterwards and opens a Person
+        Details tab for the newly created/updated person.
 
         Args:
             editor: The PersonEditor widget containing the data.
+            person_id: Optional ID of person to update. If unspecified, a new
+                person will be created.
 
         """
-        self._db.create_person(editor.get_values())
-        # TODO: Open person details in place of editor
+        person_id = self._db.save_person(editor.get_values(), person_id)
+        self.view_person_details(person_id, editor)
         self._widgets.tab_holder.close_tab(editor)
 
     # Change the state of various widgets in response to a database being
@@ -184,7 +235,18 @@ class TabHolder(QTabWidget):
         self._tab_ids = {}
         self._tab_ids_inverse = {}
 
-    def addTab(self, widget, label, tab_id):
+    # Establish a new tab ID
+    def _new_tab_id(self, tab_id, widget):
+        self._tab_ids[tab_id] = widget
+        self._tab_ids_inverse[widget] = tab_id
+
+    # Delete a tab ID
+    def _del_tab_id(self, tab_id):
+        widget = self._tab_ids[tab_id]
+        del self._tab_ids[tab_id]
+        del self._tab_ids_inverse[widget]
+
+    def addTab(self, widget, label, tab_id, before=None):
         """
         Create a new tab. Overrides QTabWidget's addTab() method.
 
@@ -192,11 +254,21 @@ class TabHolder(QTabWidget):
             widget: The widget to be displayed by the tab.
             label: The name to display on the tab.
             tab_id: Unique ID string used to refer to the tab later.
+            before: Optional ID or page widget of the tab that the new tab will
+                be inserted in front of. If unspecified, the new tab will be
+                added to the end of the tab bar.
 
         """
-        self._tab_ids[tab_id] = widget
-        self._tab_ids_inverse[widget] = tab_id
-        super().addTab(widget, label)
+        if before:
+            if isinstance(before, QWidget):
+                before_widget = before
+            else:
+                before_widget = self.get_tab(before)
+            index = self.indexOf(before_widget)
+            super().insertTab(index, widget, label)
+        else:
+            super().addTab(widget, label)
+        self._new_tab_id(tab_id, widget)
 
     def get_tab(self, tab_id):
         """
@@ -228,8 +300,7 @@ class TabHolder(QTabWidget):
             widget = index_or_widget
             index = self.indexOf(widget)
         tab_id = self._tab_ids_inverse[widget]
-        del self._tab_ids[tab_id]
-        del self._tab_ids_inverse[widget]
+        self._del_tab_id(tab_id)
         self.removeTab(index)
         widget.deleteLater()
 
@@ -254,14 +325,26 @@ class ValuePropertyMixin:
 
     @property
     def value(self):
-        """Get or set the widget's current value."""
+        """
+        Get or set the widget's current value. A widget containing an empty
+        string will return a value of None. Setting a widget's value to None
+        will assign it an empty string.
+
+        """
         getter = getattr(self, self.getter_method)
-        return getter()
+        v = getter()
+        if v == "":
+            return None
+        else:
+            return v
 
     @value.setter
     def value(self, value):
         setter = getattr(self, self.setter_method)
-        setter(value)
+        if value is None:
+            setter("")
+        else:
+            setter(str(value))
 
 
 class Label(ValuePropertyMixin, QLabel):
@@ -277,10 +360,60 @@ class TextEdit(ValuePropertyMixin, QTextEdit):
     setter_method = "setPlainText"
 
 
-class BaseEditor(QWidget):
+class BaseDetailsOrEditor(QWidget):
+    """Parent class for BaseDetails and BaseEditor."""
+    def __init__(self):
+        self._data_widgets = {}
+        super().__init__()
+        layout = QGridLayout()
+        for i, field in enumerate(self.fields):
+            if len(field) > 2:
+                field_id, label, widget_type = field
+            else:
+                field_id, label = field
+                widget_type = Label
+            layout.addWidget(QLabel(label), i, 0)
+            widget = widget_type()
+            layout.addWidget(widget, i, 1)
+            self._data_widgets[field_id] = widget
+        self.setLayout(layout)
+
+    def set_values(self, values):
+        """
+        Set the current values of all of the viewer/editor's data widgets.
+
+        Args:
+            values: A dictionary of field_id and widget value pairs.
+
+        """
+        keys = self._data_widgets.keys() & values.keys()
+        for key in keys:
+            self._data_widgets[key].value = values[key]
+
+
+class BaseDetails(BaseDetailsOrEditor):
+    """
+    Generic record viewer widget. Subclasses should set the fields attribute to
+    a sequence of 2-tuples, each containing a field ID and label. For example:
+
+    fields = (
+        ("person_id", "Person ID"),
+        ("first_name_or_nickname", "First name or nickname"),
+        ("pronouns", "Pronouns"),
+        ("notes", "Notes"),
+    )
+
+    """
+    def __init__(self):
+        super().__init__()
+        self.edit_button = QPushButton("Edit")
+        self.layout().addWidget(self.edit_button, len(self.fields), 0, 1, -1)
+
+
+class BaseEditor(BaseDetailsOrEditor):
     """
     Generic record editor widget. Subclasses should set the fields attribute to
-    a sequence of 3-tuples, each containing a field ID, Label, and widget
+    a sequence of 3-tuples, each containing a field ID, label, and widget
     class. For example:
 
     fields = (
@@ -292,18 +425,11 @@ class BaseEditor(QWidget):
 
     """
     def __init__(self):
-        self._data_widgets = {}
         super().__init__()
-        layout = QGridLayout()
-        for i, field in enumerate(self.fields):
-            field_id, label, widget_type = field
-            layout.addWidget(QLabel(label), i, 0)
-            widget = widget_type()
-            layout.addWidget(widget, i, 1)
-            self._data_widgets[field_id] = widget
+        self.cancel_button = QPushButton("Cancel")
+        self.layout().addWidget(self.cancel_button, len(self.fields), 0)
         self.save_button = QPushButton("Save")
-        layout.addWidget(self.save_button, len(self.fields), 0, 1, -1)
-        self.setLayout(layout)
+        self.layout().addWidget(self.save_button, len(self.fields), 1)
 
     def get_values(self):
         """
@@ -322,17 +448,14 @@ class BaseEditor(QWidget):
             values[field_id] = value
         return values
 
-    def set_values(self, values):
-        """
-        Set the current values of all of the editor's data widgets.
 
-        Args:
-            values: A dictionary of field_id and widget value pairs.
-
-        """
-        keys = self._data_widgets.keys() & values.keys()
-        for key in keys:
-            self._data_widgets[key].value = values[key]
+class PersonDetails(BaseDetails):
+    fields = (
+        ("person_id", "Person ID"),
+        ("first_name_or_nickname", "First name or nickname"),
+        ("pronouns", "Pronouns"),
+        ("notes", "Notes"),
+    )
 
 
 class PersonEditor(BaseEditor):
