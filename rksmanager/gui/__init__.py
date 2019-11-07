@@ -466,16 +466,12 @@ class BaseEditor(BaseDetailsOrEditor):
         Get the current values of all of the editor's data widgets.
 
         Returns:
-            A dictionary of field_id and widget value pairs, with any empty
-            string values converted to None.
+            A dictionary of field_id and widget value pairs.
 
         """
-        values = dict()
+        values = {}
         for field_id, widget in self._data_widgets.items():
-            value = widget.value
-            if value == "":
-                value = None
-            values[field_id] = value
+            values[field_id] = widget.value
         return values
 
 
