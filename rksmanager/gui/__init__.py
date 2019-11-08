@@ -385,6 +385,21 @@ class TextEdit(ValuePropertyMixin, QTextEdit):
     setter_method = "setPlainText"
 
 
+class ListLabel(QLabel):
+    def __init__(self):
+        super().__init__()
+        self._data = []
+
+    @property
+    def value(self):
+        return self._data
+
+    @value.setter
+    def value(self, value):
+        self._data = value
+        self.setText("\n".join(value))
+
+
 class ListEdit(QWidget):
     def __init__(self):
         super().__init__()
@@ -492,11 +507,13 @@ class BaseDetailsOrEditor(QWidget):
 class BaseDetails(BaseDetailsOrEditor):
     """
     Generic record viewer widget. Subclasses should set the fields attribute to
-    a sequence of 2-tuples, each containing a field ID and label. For example:
+    a sequence of 2-tuples or 3-tuples, each containing a field ID and label,
+    and optionally a widget class (defaults to Label). For example:
 
     fields = (
         ("id", "Person ID"),
-        ("first_name_or_nickname", "First name or nickname"),
+        ("first_name_or_nickname", "First name\nor nickname"),
+        ("aliases", "Aliases", ListLabel),
         ("pronouns", "Pronouns"),
         ("notes", "Notes"),
     )
@@ -587,6 +604,7 @@ class PersonDetails(BaseDetails):
     fields = (
         ("id", "Person ID"),
         ("first_name_or_nickname", "First name\nor nickname"),
+        ("aliases", "Aliases", ListLabel),
         ("pronouns", "Pronouns"),
         ("notes", "Notes"),
     )
