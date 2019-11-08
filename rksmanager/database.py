@@ -3,6 +3,7 @@ import decimal
 import datetime
 import pathlib
 import re
+import itertools
 
 
 class Database:
@@ -181,20 +182,46 @@ class Database:
         """
         with self._connection:
             if person_id:
-                data["person_id"] = person_id
+                data["id"] = person_id
                 self._connection.execute(
                     """
                     update people
                     set first_name_or_nickname = :first_name_or_nickname
                         , pronouns = :pronouns
                         , notes = :notes
-                    where id = :person_id
+                    where id = :id
                     """,
                     data,
                 )
-                return person_id
+                old_aliases = set(self._get_person_aliases(person_id))
+                new_aliases = set(data["aliases"])
+                remove_aliases = old_aliases - new_aliases
+                add_aliases = new_aliases - old_aliases
+                # This probably counts as "too cute", but I'm doing it anyway
+                for old, new in itertools.zip_longest(remove_aliases,
+                                                      add_aliases):
+                    if old and new:
+                        # We have both new and old aliases left, so swap an old
+                        # one for a new one
+                        self._connection.execute(
+                            """
+                            update people_aliases
+                            set alias = :new
+                            where person_id = :person_id
+                            and alias = :old
+                            """,
+                            {"old": old, "new": new, "person_id": person_id},
+                        )
+                    elif old:
+                        # We've run out of new aliases and only have old ones
+                        # left, so delete this one
+                        self._remove_person_alias(person_id, old)
+                    elif new:
+                        # We've run out of old aliases and only have new ones
+                        # left, so insert this one
+                        self._add_person_alias(person_id, new)
             else:
-                return self._connection.execute(
+                person_id = self._connection.execute(
                     """
                     insert into people (
                         first_name_or_nickname
@@ -208,6 +235,9 @@ class Database:
                     """,
                     data,
                 ).lastrowid
+                for alias in data["aliases"]:
+                    self._add_person_alias(person_id, alias)
+            return person_id
 
     def get_person(self, person_id):
         """
@@ -221,9 +251,9 @@ class Database:
 
         """
         with self._connection:
-            return self._connection.execute(
+            row = self._connection.execute(
                 """
-                select id as person_id
+                select id
                     , first_name_or_nickname
                     , pronouns
                     , notes
@@ -232,6 +262,46 @@ class Database:
                 """,
                 (person_id,),
             ).fetchone()
+            person = {}
+            for key in row.keys():
+                person[key] = row[key]
+            person["aliases"] = self._get_person_aliases(person_id)
+            return person
+
+    def _get_person_aliases(self, person_id):
+        rows = self._connection.execute(
+            """
+            select alias
+            from people_aliases
+            where person_id = ?
+            """,
+            (person_id,),
+        ).fetchall()
+        return [row["alias"] for row in rows]
+
+    def _add_person_alias(self, person_id, alias):
+        self._connection.execute(
+            """
+            insert into people_aliases (
+                person_id
+                , alias
+            ) values (
+                :person_id
+                , :alias
+            )
+            """,
+            {"person_id": person_id, "alias": alias},
+        )
+
+    def _remove_person_alias(self, person_id, alias):
+        self._connection.execute(
+            """
+            delete from people_aliases
+            where person_id = :person_id
+            and alias = :alias
+            """,
+            {"person_id": person_id, "alias": alias},
+        )
 
     def get_people(self):
         with self._connection:

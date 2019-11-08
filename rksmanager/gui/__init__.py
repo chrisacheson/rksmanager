@@ -1,6 +1,7 @@
 import traceback
 import types
 import sys
+import functools
 
 from PySide2.QtWidgets import (QApplication, QMainWindow, QAction, QTabWidget,
                                QWidget, QGridLayout, QLabel, QLineEdit,
@@ -177,7 +178,7 @@ class Gui:
         else:
             tab_id = "create_person"
             title = "Create Person"
-            person_data = {"person_id": "Not assigned yet"}
+            person_data = {"id": "Not assigned yet"}
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
             tab = PersonEditor()
@@ -209,9 +210,7 @@ class Gui:
                 person will be created.
 
         """
-        print(person_id)
         person_id = self._db.save_person(editor.get_values(), person_id)
-        print(person_id)
         self.view_person_details(person_id, editor)
         self._widgets.tab_holder.close_tab(editor)
 
@@ -386,6 +385,75 @@ class TextEdit(ValuePropertyMixin, QTextEdit):
     setter_method = "setPlainText"
 
 
+class ListEdit(QWidget):
+    def __init__(self):
+        super().__init__()
+        self._layout = QGridLayout()
+        self.setLayout(self._layout)
+        self._rows = []
+        self.value = []
+
+    @property
+    def value(self):
+        data = []
+        for row in self._rows:
+            text_box, _, _ = row
+            text = text_box.text()
+            if text:
+                data.append(text)
+        return data
+
+    @value.setter
+    def value(self, value):
+        if not value:
+            value.append("")
+        add_num_rows = len(value) - len(self._rows)
+        if add_num_rows > 0:
+            # Positive, add rows to the end
+            for i in range(add_num_rows):
+                row_index = len(self._rows)
+
+                def add(index):
+                    self.add_row(index + 1)
+                add_button = QPushButton("+")
+                add_button.clicked.connect(functools.partial(add, row_index))
+
+                def remove(index):
+                    self.remove_row(index)
+                remove_button = QPushButton("-")
+                remove_button.clicked.connect(functools.partial(remove,
+                                                                row_index))
+
+                row = (QLineEdit(), add_button, remove_button)
+                for j, widget in enumerate(row):
+                    self._layout.addWidget(widget, row_index, j)
+                self._rows.append(row)
+        elif add_num_rows < 0:
+            # Negative, chop some rows off the end
+            chop = self._rows[add_num_rows:]
+            self._rows = self._rows[:add_num_rows]
+            for row in chop:
+                for widget in row:
+                    self._layout.removeWidget(widget)
+                    widget.deleteLater()
+        for text, row in zip(value, self._rows):
+            text_box, _, _ = row
+            text_box.setText(text)
+
+    def add_row(self, before_index=None):
+        # Can't use value because we don't want empty strings stripped out here
+        data = [row[0].text() for row in self._rows]
+        if before_index is None:
+            before_index = len(data)
+        data.insert(before_index, "")
+        self.value = data
+
+    def remove_row(self, index):
+        data = [row[0].text() for row in self._rows]
+        data.pop(index)
+        self.value = data
+
+
 class BaseDetailsOrEditor(QWidget):
     """Parent class for BaseDetails and BaseEditor."""
     def __init__(self):
@@ -427,7 +495,7 @@ class BaseDetails(BaseDetailsOrEditor):
     a sequence of 2-tuples, each containing a field ID and label. For example:
 
     fields = (
-        ("person_id", "Person ID"),
+        ("id", "Person ID"),
         ("first_name_or_nickname", "First name or nickname"),
         ("pronouns", "Pronouns"),
         ("notes", "Notes"),
@@ -447,7 +515,7 @@ class BaseEditor(BaseDetailsOrEditor):
     class. For example:
 
     fields = (
-        ("person_id", "Person ID", Label),
+        ("id", "Person ID", Label),
         ("first_name_or_nickname", "First name or nickname", LineEdit),
         ("pronouns", "Pronouns", LineEdit),
         ("notes", "Notes", TextEdit),
@@ -517,7 +585,7 @@ class BaseList(QWidget):
 
 class PersonDetails(BaseDetails):
     fields = (
-        ("person_id", "Person ID"),
+        ("id", "Person ID"),
         ("first_name_or_nickname", "First name\nor nickname"),
         ("pronouns", "Pronouns"),
         ("notes", "Notes"),
@@ -526,8 +594,9 @@ class PersonDetails(BaseDetails):
 
 class PersonEditor(BaseEditor):
     fields = (
-        ("person_id", "Person ID", Label),
+        ("id", "Person ID", Label),
         ("first_name_or_nickname", "First name\nor nickname", LineEdit),
+        ("aliases", "Aliases", ListEdit),
         ("pronouns", "Pronouns", LineEdit),
         ("notes", "Notes", TextEdit),
     )
