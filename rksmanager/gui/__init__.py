@@ -475,6 +475,7 @@ class BaseDetailsOrEditor(QWidget):
         self._data_widgets = {}
         super().__init__()
         layout = QGridLayout()
+        layout.setColumnStretch(1, 1)
         for i, field in enumerate(self.fields):
             if len(field) > 2:
                 field_id, label, widget_type = field
