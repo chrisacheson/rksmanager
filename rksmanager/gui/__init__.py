@@ -400,73 +400,108 @@ class ListLabel(QLabel):
         self.setText("\n".join(value))
 
 
+class GridLayout(QGridLayout):
+    def append_row(self, new_row):
+        self.insert_row(self.rowCount(), new_row)
+
+    def insert_row(self, insert_index, new_row):
+        num_rows = self.rowCount()
+        if insert_index < num_rows:
+            num_columns = self.columnCount()
+            # Shift the insert_index row and all rows below it downward,
+            # starting with the lowest row
+            for i in reversed(range(insert_index, num_rows)):
+                for j in range(num_columns):
+                    layout_item = self.itemAtPosition(i, j)
+                    if not layout_item:
+                        continue
+                    widget = layout_item.widget()
+                    self.removeWidget(widget)
+                    self.addWidget(widget, i + 1, j)
+        # Add the new row
+        for j, widget in enumerate(new_row):
+            self.addWidget(widget, insert_index, j)
+
+    def pop_row(self, index=None):
+        num_rows = self.rowCount()
+        if index is None:
+            index = num_rows - 1
+        num_columns = self.columnCount()
+        popped_row = []
+        # Remove the index row
+        for j in range(num_columns):
+            layout_item = self.itemAtPosition(index, j)
+            if not layout_item:
+                popped_row.append(None)
+                continue
+            widget = layout_item.widget()
+            popped_row.append(widget)
+            self.removeWidget(widget)
+        # Shift everything below the index row up
+        for i in range(index + 1, num_rows):
+            for j in range(num_columns):
+                layout_item = self.itemAtPosition(i, j)
+                if not layout_item:
+                    continue
+                widget = layout_item.widget()
+                self.removeWidget(widget)
+                self.addWidget(widget, i - 1, j)
+        return popped_row
+
+
 class ListEdit(QWidget):
     def __init__(self):
         super().__init__()
-        self._layout = QGridLayout()
+        # We have to track this ourselves, because QGridLayout.rowCount() never
+        # shrinks
+        self._num_items = 0
+        self._layout = GridLayout()
+        self._text_box = QLineEdit()
+
+        def add():
+            self.append(self._text_box.text())
+            self._text_box.setText("")
+        add_button = QPushButton("+")
+        add_button.clicked.connect(add)
+
+        self._layout.append_row((self._text_box, add_button))
         self.setLayout(self._layout)
-        self._rows = []
-        self.value = []
+
+    def append(self, text):
+        if (not text) or (text in self.value):
+            return
+
+        def remove(button):
+            layout_index = self._layout.indexOf(button)
+            row_index, _, _, _ = self._layout.getItemPosition(layout_index)
+            self._text_box.setText(self.pop(row_index))
+        remove_button = QPushButton("-")
+        remove_button.clicked.connect(functools.partial(remove, remove_button))
+
+        self._layout.insert_row(self._num_items, (QLabel(text), remove_button))
+        self._num_items += 1
+
+    def pop(self, index=None):
+        label, remove_button = self._layout.pop_row(index)
+        text = label.text()
+        label.deleteLater()
+        remove_button.deleteLater()
+        self._num_items -= 1
+        return text
 
     @property
     def value(self):
         data = []
-        for row in self._rows:
-            text_box, _, _ = row
-            text = text_box.text()
-            if text:
-                data.append(text)
+        for i in range(self._num_items):
+            data.append(self._layout.itemAtPosition(i, 0).widget().text())
         return data
 
     @value.setter
     def value(self, value):
-        if not value:
-            value.append("")
-        add_num_rows = len(value) - len(self._rows)
-        if add_num_rows > 0:
-            # Positive, add rows to the end
-            for i in range(add_num_rows):
-                row_index = len(self._rows)
-
-                def add(index):
-                    self.add_row(index + 1)
-                add_button = QPushButton("+")
-                add_button.clicked.connect(functools.partial(add, row_index))
-
-                def remove(index):
-                    self.remove_row(index)
-                remove_button = QPushButton("-")
-                remove_button.clicked.connect(functools.partial(remove,
-                                                                row_index))
-
-                row = (QLineEdit(), add_button, remove_button)
-                for j, widget in enumerate(row):
-                    self._layout.addWidget(widget, row_index, j)
-                self._rows.append(row)
-        elif add_num_rows < 0:
-            # Negative, chop some rows off the end
-            chop = self._rows[add_num_rows:]
-            self._rows = self._rows[:add_num_rows]
-            for row in chop:
-                for widget in row:
-                    self._layout.removeWidget(widget)
-                    widget.deleteLater()
-        for text, row in zip(value, self._rows):
-            text_box, _, _ = row
-            text_box.setText(text)
-
-    def add_row(self, before_index=None):
-        # Can't use value because we don't want empty strings stripped out here
-        data = [row[0].text() for row in self._rows]
-        if before_index is None:
-            before_index = len(data)
-        data.insert(before_index, "")
-        self.value = data
-
-    def remove_row(self, index):
-        data = [row[0].text() for row in self._rows]
-        data.pop(index)
-        self.value = data
+        while self._num_items:
+            self.pop()
+        for text in value:
+            self.append(text)
 
 
 class BaseDetailsOrEditor(QWidget):
