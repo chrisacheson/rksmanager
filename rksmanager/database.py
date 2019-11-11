@@ -193,7 +193,10 @@ class Database:
                     """,
                     data,
                 )
-                old_aliases = self._get_person_aliases(person_id)
+                old_aliases = self._get_collection(table="people_aliases",
+                                                   filter_column="person_id",
+                                                   get_column="alias",
+                                                   filter_value=person_id)
             else:
                 person_id = self._connection.execute(
                     """
@@ -290,6 +293,33 @@ class Database:
 
                     self._connection.execute(query, parameters)
 
+    # Get the items of a simple collection associated with a record, such as
+    # the aliases associated with a person.
+    #
+    # This function uses dynamic queries. DO NOT pass any unsanitized data to
+    # it for the table, filter_column, or get_column arguments.
+    #
+    # Args:
+    #   table: Name of the table to query, such as people_aliases.
+    #   filter_column: Column to filter by, such as person_id.
+    #   get_column: Column to get data from, such as alias.
+    #   filter_value: The value to filter for, such as the ID of a person.
+    #
+    # Returns:
+    #   A list containing the collection's items.
+    def _get_collection(self, table, filter_column, get_column, filter_value):
+        query = (
+            """
+            select {get_column}
+            from {table}
+            where {filter_column} = ?
+            """
+        ).format(table=table,
+                 filter_column=filter_column,
+                 get_column=get_column)
+        rows = self._connection.execute(query, (filter_value,)).fetchall()
+        return [row[get_column] for row in rows]
+
     def get_person(self, person_id):
         """
         Retrieve the specified person from the database.
@@ -316,19 +346,11 @@ class Database:
             person = {}
             for key in row.keys():
                 person[key] = row[key]
-            person["aliases"] = self._get_person_aliases(person_id)
+            person["aliases"] = self._get_collection(table="people_aliases",
+                                                     filter_column="person_id",
+                                                     get_column="alias",
+                                                     filter_value=person_id)
             return person
-
-    def _get_person_aliases(self, person_id):
-        rows = self._connection.execute(
-            """
-            select alias
-            from people_aliases
-            where person_id = ?
-            """,
-            (person_id,),
-        ).fetchall()
-        return [row["alias"] for row in rows]
 
     def get_people(self):
         with self._connection:
