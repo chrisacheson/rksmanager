@@ -193,33 +193,7 @@ class Database:
                     """,
                     data,
                 )
-                old_aliases = set(self._get_person_aliases(person_id))
-                new_aliases = set(data["aliases"])
-                remove_aliases = old_aliases - new_aliases
-                add_aliases = new_aliases - old_aliases
-                # This probably counts as "too cute", but I'm doing it anyway
-                for old, new in itertools.zip_longest(remove_aliases,
-                                                      add_aliases):
-                    if old and new:
-                        # We have both new and old aliases left, so swap an old
-                        # one for a new one
-                        self._connection.execute(
-                            """
-                            update people_aliases
-                            set alias = :new
-                            where person_id = :person_id
-                            and alias = :old
-                            """,
-                            {"old": old, "new": new, "person_id": person_id},
-                        )
-                    elif old:
-                        # We've run out of new aliases and only have old ones
-                        # left, so delete this one
-                        self._remove_person_alias(person_id, old)
-                    elif new:
-                        # We've run out of old aliases and only have new ones
-                        # left, so insert this one
-                        self._add_person_alias(person_id, new)
+                old_aliases = self._get_person_aliases(person_id)
             else:
                 person_id = self._connection.execute(
                     """
@@ -235,9 +209,86 @@ class Database:
                     """,
                     data,
                 ).lastrowid
-                for alias in data["aliases"]:
-                    self._add_person_alias(person_id, alias)
+                old_aliases = ()
+
+            new_aliases = data["aliases"]
+            self._update_collection(table="people_aliases",
+                                    filter_column="person_id",
+                                    update_column="alias",
+                                    filter_value=person_id,
+                                    old_items=old_aliases,
+                                    new_items=new_aliases)
             return person_id
+
+    # Update the items of a simple collection associated with a record, such as
+    # the aliases associated with a person.
+    #
+    # This function uses dynamic queries. DO NOT pass any unsanitized data to
+    # it for the table, filter_column, or update_column arguments.
+    #
+    # Args:
+    #   table: Name of the table to update, such as people_aliases.
+    #   filter_column: Column to filter by, such as person_id.
+    #   update_column: Column to update, such as alias.
+    #   filter_value: The value to filter for, such as the ID of a person.
+    #   old_items: A sequence consisting of the items currently in the
+    #       collection.
+    #   new_items: A sequence consisting of the items that will be added to or
+    #       kept in the collection.
+    def _update_collection(self, table, filter_column, update_column,
+                           filter_value, old_items, new_items):
+                old_items = set(old_items)
+                new_items = set(new_items)
+                remove_items = old_items - new_items
+                add_items = new_items - old_items
+                for old, new in itertools.zip_longest(remove_items, add_items):
+                    if old and new:
+                        # We have both new and old items left, so swap an old
+                        # one for a new one
+                        query = (
+                            """
+                            update {table}
+                            set {update_column} = :new
+                            where {filter_column} = :filter_value
+                            and {update_column} = :old
+                            """
+                        ).format(table=table,
+                                 filter_column=filter_column,
+                                 update_column=update_column)
+                        parameters = {"old": old, "new": new,
+                                      "filter_value": filter_value}
+                    elif old:
+                        # We've run out of new items and only have old ones
+                        # left, so delete this one
+                        query = (
+                            """
+                            delete from {table}
+                            where {filter_column} = :filter_value
+                            and {update_column} = :old
+                            """
+                        ).format(table=table,
+                                 filter_column=filter_column,
+                                 update_column=update_column)
+                        parameters = {"old": old, "filter_value": filter_value}
+                    elif new:
+                        # We've run out of old items and only have new ones
+                        # left, so insert this one
+                        query = (
+                            """
+                            insert into {table} (
+                                {filter_column}
+                                , {update_column}
+                            ) values (
+                                :filter_value
+                                , :new
+                            )
+                            """
+                        ).format(table=table,
+                                 filter_column=filter_column,
+                                 update_column=update_column)
+                        parameters = {"new": new, "filter_value": filter_value}
+
+                    self._connection.execute(query, parameters)
 
     def get_person(self, person_id):
         """
@@ -247,7 +298,7 @@ class Database:
             person_id: The ID of the person.
 
         Returns:
-            The person's data as an sqlite3.Row object.
+            The a dictionary of the person's data.
 
         """
         with self._connection:
@@ -278,30 +329,6 @@ class Database:
             (person_id,),
         ).fetchall()
         return [row["alias"] for row in rows]
-
-    def _add_person_alias(self, person_id, alias):
-        self._connection.execute(
-            """
-            insert into people_aliases (
-                person_id
-                , alias
-            ) values (
-                :person_id
-                , :alias
-            )
-            """,
-            {"person_id": person_id, "alias": alias},
-        )
-
-    def _remove_person_alias(self, person_id, alias):
-        self._connection.execute(
-            """
-            delete from people_aliases
-            where person_id = :person_id
-            and alias = :alias
-            """,
-            {"person_id": person_id, "alias": alias},
-        )
 
     def get_people(self):
         with self._connection:
