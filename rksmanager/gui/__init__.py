@@ -10,7 +10,7 @@ from PySide2.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel
 import rksmanager.database
 from . import dialogboxes
 from .widgets import (TabHolder, Label, LineEdit, TextEdit, ListLabel,
-                      ListEdit, PrimaryItemListEdit)
+                      ListEdit, PrimaryItemListLabel, PrimaryItemListEdit)
 
 
 class Gui:
@@ -381,6 +381,7 @@ class PersonDetails(BaseDetails):
         ("id", "Person ID"),
         ("first_name_or_nickname", "First name\nor nickname"),
         ("aliases", "Aliases", ListLabel),
+        ("email_addresses", "Email Addresses", PrimaryItemListLabel),
         ("pronouns", "Pronouns"),
         ("notes", "Notes"),
     )

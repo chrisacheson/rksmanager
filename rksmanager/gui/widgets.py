@@ -150,6 +150,9 @@ class ListLabel(QLabel):
         super().__init__()
         self._data = []
 
+    def setText(self, items):
+        super().setText("\n".join(items))
+
     @property
     def value(self):
         return self._data
@@ -157,7 +160,15 @@ class ListLabel(QLabel):
     @value.setter
     def value(self, value):
         self._data = value
-        self.setText("\n".join(value))
+        self.setText(value)
+
+
+class PrimaryItemListLabel(ListLabel):
+    def setText(self, items):
+        new_items = list(items)
+        if new_items:
+            new_items[0] += " (Primary)"
+        super().setText(new_items)
 
 
 class GridLayout(QGridLayout):
