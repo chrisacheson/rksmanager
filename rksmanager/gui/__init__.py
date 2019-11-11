@@ -398,7 +398,7 @@ class PersonEditor(BaseEditor):
 
 
 class PersonListModel(BaseListModel):
-    headers = ("ID", "Name", "Pronouns", "Notes")
+    headers = ("ID", "Name", "Email Address", "Pronouns", "Notes")
 
 
 class PersonList(BaseList):

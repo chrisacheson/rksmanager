@@ -417,10 +417,14 @@ class Database:
         with self._connection:
             return self._connection.execute(
                 """
-                select id
+                select people.id as id
                     , first_name_or_nickname
+                    , email_address
                     , pronouns
                     , notes
                 from people
+                left join people_email_addresses
+                on people.id = people_email_addresses.person_id
+                and primary_email = 1
                 """
             ).fetchall()
