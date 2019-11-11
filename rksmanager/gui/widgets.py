@@ -161,52 +161,64 @@ class ListLabel(QLabel):
 
 
 class GridLayout(QGridLayout):
-    def append_row(self, new_row):
-        self.insert_row(self.rowCount(), new_row)
+    def get_all_widget_coordinates(self):
+        coordinates = []
+        for i in range(self.count()):
+            widget = self.itemAt(i).widget()
+            if not widget:
+                # TODO: Handle child layouts too?
+                continue
+            row, column, rowspan, colspan = self.getItemPosition(i)
+            coordinates.append((widget, row, column, rowspan, colspan))
+        return coordinates
+
+    def get_widget_coordinates_in_rect(self, row, column, height, width):
+        end_row = row + height - 1
+        end_col = column + width - 1
+        coordinates = []
+        for coordinate in self.get_all_widget_coordinates():
+            _, r, c, _, _ = coordinate
+            if (row <= r <= end_row) and (column <= c <= end_col):
+                coordinates.append(coordinate)
+        return coordinates
+
+    def remove_widgets_in_rect(self, row, column, height, width):
+        widgets = []
+        for coordinate in self.get_widget_coordinates_in_rect(row, column,
+                                                              height, width):
+            widget, _, _, _, _ = coordinate
+            self.removeWidget(widget)
+            widgets.append(widget)
+        return widgets
+
+    def shift_widgets_in_rect(self, row, column, height, width,
+                              row_shift, col_shift):
+        coordinates = self.get_widget_coordinates_in_rect(row, column,
+                                                          height, width)
+        for coordinate in coordinates:
+            self.removeWidget(coordinate[0])
+        for w, r, c, rspan, cspan in coordinates:
+            self.addWidget(w, r + row_shift, c + col_shift, rspan, cspan)
 
     def insert_row(self, insert_index, new_row):
-        num_rows = self.rowCount()
-        if insert_index < num_rows:
-            num_columns = self.columnCount()
-            # Shift the insert_index row and all rows below it downward,
-            # starting with the lowest row
-            for i in reversed(range(insert_index, num_rows)):
-                for j in range(num_columns):
-                    layout_item = self.itemAtPosition(i, j)
-                    if not layout_item:
-                        continue
-                    widget = layout_item.widget()
-                    self.removeWidget(widget)
-                    self.addWidget(widget, i + 1, j)
-        # Add the new row
-        for j, widget in enumerate(new_row):
-            self.addWidget(widget, insert_index, j)
+        num_rows, num_columns = self.rowCount(), self.columnCount()
+        rect_height = num_rows - insert_index
+        self.shift_widgets_in_rect(insert_index, 0,
+                                   rect_height, num_columns,
+                                   1, 0)  # Down by 1
+        for widget, column, colspan in new_row:
+            self.addWidget(widget, insert_index, column, 1, colspan)
 
-    def pop_row(self, index=None):
-        num_rows = self.rowCount()
-        if index is None:
-            index = num_rows - 1
-        num_columns = self.columnCount()
-        popped_row = []
-        # Remove the index row
-        for j in range(num_columns):
-            layout_item = self.itemAtPosition(index, j)
-            if not layout_item:
-                popped_row.append(None)
-                continue
-            widget = layout_item.widget()
-            popped_row.append(widget)
-            self.removeWidget(widget)
-        # Shift everything below the index row up
-        for i in range(index + 1, num_rows):
-            for j in range(num_columns):
-                layout_item = self.itemAtPosition(i, j)
-                if not layout_item:
-                    continue
-                widget = layout_item.widget()
-                self.removeWidget(widget)
-                self.addWidget(widget, i - 1, j)
-        return popped_row
+    def remove_row(self, index):
+        num_rows, num_columns = self.rowCount(), self.columnCount()
+        removed_widgets = self.remove_widgets_in_rect(index, 0, 1, num_columns)
+
+        row_below_removed = index + 1
+        rect_height = num_rows - row_below_removed
+        self.shift_widgets_in_rect(row_below_removed, 0,
+                                   rect_height, num_columns,
+                                   -1, 0)  # Up by 1
+        return removed_widgets
 
 
 class ListEdit(QWidget):
@@ -214,8 +226,9 @@ class ListEdit(QWidget):
         super().__init__()
         # We have to track this ourselves, because QGridLayout.rowCount() never
         # shrinks
-        self._num_items = 0
-        self._layout = GridLayout()
+        self.num_items = 0
+        self.before_append_callback = None
+        self.layout = GridLayout()
         self._text_box = QLineEdit()
 
         def add():
@@ -224,41 +237,98 @@ class ListEdit(QWidget):
         add_button = QPushButton("+")
         add_button.clicked.connect(add)
 
-        self._layout.append_row((self._text_box, add_button))
-        self.setLayout(self._layout)
+        self.build_text_box_row(self._text_box, add_button)
+        self.setLayout(self.layout)
+
+    def build_text_box_row(self, text_box, add_button):
+        self.layout.insert_row(0, (
+            (text_box, 0, 1),  # Column 0, span 1
+            (add_button, 1, 1),  # Column 1, span 1
+        ))
+
+    def build_label_row(self, index, label, remove_button):
+        self.layout.insert_row(index, (
+            (label, 0, 1),  # Column 0, span 1
+            (remove_button, 1, 1),  # Column 1, span 1
+        ))
 
     def append(self, text):
         if (not text) or (text in self.value):
             return
 
         def remove(button):
-            layout_index = self._layout.indexOf(button)
-            row_index, _, _, _ = self._layout.getItemPosition(layout_index)
+            layout_index = self.layout.indexOf(button)
+            row_index, _, _, _ = self.layout.getItemPosition(layout_index)
             self._text_box.setText(self.pop(row_index))
         remove_button = QPushButton("-")
         remove_button.clicked.connect(functools.partial(remove, remove_button))
 
-        self._layout.insert_row(self._num_items, (QLabel(text), remove_button))
-        self._num_items += 1
+        self.build_label_row(self.num_items, QLabel(text), remove_button)
+        self.num_items += 1
 
-    def pop(self, index=None):
-        label, remove_button = self._layout.pop_row(index)
-        text = label.text()
-        label.deleteLater()
-        remove_button.deleteLater()
-        self._num_items -= 1
+    def get_item(self, index):
+        return self.layout.itemAtPosition(index, 0).widget().text()
+
+    def set_item(self, index, text):
+        self.layout.itemAtPosition(index, 0).widget().setText(text)
+
+    def pop(self, index):
+        text = self.get_item(index)
+        removed_widgets = self.layout.remove_row(index)
+        for widget in removed_widgets:
+            widget.deleteLater()
+        self.num_items -= 1
         return text
 
     @property
     def value(self):
         data = []
-        for i in range(self._num_items):
-            data.append(self._layout.itemAtPosition(i, 0).widget().text())
+        for i in range(self.num_items):
+            data.append(self.get_item(i))
         return data
 
     @value.setter
     def value(self, value):
-        while self._num_items:
-            self.pop()
+        while self.num_items:
+            self.pop(0)
         for text in value:
             self.append(text)
+
+
+class PrimaryItemListEdit(ListEdit):
+    def build_text_box_row(self, text_box, add_button):
+        self.layout.insert_row(0, (
+            (text_box, 0, 2),  # Column 0, span 2
+            (add_button, 2, 1),  # Column 2, span 1
+        ))
+
+    def build_label_row(self, index, label, remove_button):
+        if index == 0:
+            primary_widget = QLabel("(Primary)")
+        else:
+            def make_primary(button):
+                layout_index = self.layout.indexOf(button)
+                row_index, _, _, _ = self.layout.getItemPosition(layout_index)
+                new_primary = self.get_item(row_index)
+                old_primary = self.get_item(0)
+                self.set_item(0, new_primary)
+                self.set_item(row_index, old_primary)
+            primary_widget = QPushButton("Make Primary")
+            primary_widget.clicked.connect(functools.partial(make_primary,
+                                                             primary_widget))
+        self.layout.insert_row(index, (
+            (label, 0, 1),  # Column 0, span 1
+            (primary_widget, 1, 1),  # Column 1, span 1
+            (remove_button, 2, 1),  # Column 2, span 1
+        ))
+
+    def pop(self, index):
+        text = super().pop(index)
+        if index == 0 and self.num_items:
+            # First row was removed and there are still items left, so swap new
+            # first row's Make Primary button for a Primary label
+            primary_button = self.layout.itemAtPosition(0, 1).widget()
+            self.layout.removeWidget(primary_button)
+            primary_button.deleteLater()
+            self.layout.addWidget(QLabel("(Primary)"), 0, 1)
+        return text
