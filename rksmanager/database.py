@@ -197,6 +197,14 @@ class Database:
                                                    filter_column="person_id",
                                                    get_column="alias",
                                                    filter_value=person_id)
+                old_email_addresses = self._get_collection(
+                    table="people_email_addresses",
+                    filter_column="person_id",
+                    get_column="email_address",
+                    filter_value=person_id,
+                    order_by_column="primary_email",
+                    order_ascending=False,
+                )
             else:
                 person_id = self._connection.execute(
                     """
@@ -213,6 +221,7 @@ class Database:
                     data,
                 ).lastrowid
                 old_aliases = ()
+                old_email_addresses = ()
 
             new_aliases = data["aliases"]
             self._update_collection(table="people_aliases",
@@ -221,6 +230,36 @@ class Database:
                                     filter_value=person_id,
                                     old_items=old_aliases,
                                     new_items=new_aliases)
+            new_email_addresses = data["email_addresses"]
+            self._update_collection(table="people_email_addresses",
+                                    filter_column="person_id",
+                                    update_column="email_address",
+                                    filter_value=person_id,
+                                    old_items=old_email_addresses,
+                                    new_items=new_email_addresses)
+            if new_email_addresses:
+                # If the person has any email addresses, set the first one as
+                # primary
+                if old_email_addresses:
+                    # But first clear any primary flags on email addresses that
+                    # they had before
+                    self._connection.execute(
+                        """
+                        update people_email_addresses
+                        set primary_email = null
+                        where person_id = ?
+                        """,
+                        (person_id,),
+                    )
+                self._connection.execute(
+                    """
+                    update people_email_addresses
+                    set primary_email = 1
+                    where person_id = :id
+                    and email_address = :email_address
+                    """,
+                    {"id": person_id, "email_address": new_email_addresses[0]},
+                )
             return person_id
 
     # Update the items of a simple collection associated with a record, such as
@@ -297,26 +336,40 @@ class Database:
     # the aliases associated with a person.
     #
     # This function uses dynamic queries. DO NOT pass any unsanitized data to
-    # it for the table, filter_column, or get_column arguments.
+    # it for the table, filter_column, get_column, or order_by_column
+    # arguments.
     #
     # Args:
     #   table: Name of the table to query, such as people_aliases.
     #   filter_column: Column to filter by, such as person_id.
     #   get_column: Column to get data from, such as alias.
     #   filter_value: The value to filter for, such as the ID of a person.
+    #   order_by_column: Optional column to order results by.
+    #   order_ascending: Optional direction to order results by. Defaults to
+    #       True. Has no effect if order_by_column is unspecified.
     #
     # Returns:
     #   A list containing the collection's items.
-    def _get_collection(self, table, filter_column, get_column, filter_value):
+    def _get_collection(self, table, filter_column, get_column, filter_value,
+                        order_by_column=None, order_ascending=True):
+        if order_by_column:
+            order_by_sql = "order by {order_by_column} {direction}".format(
+                order_by_column=order_by_column,
+                direction="asc" if order_ascending else "desc",
+            )
+        else:
+            order_by_sql = ""
         query = (
             """
             select {get_column}
             from {table}
             where {filter_column} = ?
+            {order_by_sql}
             """
         ).format(table=table,
                  filter_column=filter_column,
-                 get_column=get_column)
+                 get_column=get_column,
+                 order_by_sql=order_by_sql)
         rows = self._connection.execute(query, (filter_value,)).fetchall()
         return [row[get_column] for row in rows]
 
@@ -350,6 +403,14 @@ class Database:
                                                      filter_column="person_id",
                                                      get_column="alias",
                                                      filter_value=person_id)
+            person["email_addresses"] = self._get_collection(
+                table="people_email_addresses",
+                filter_column="person_id",
+                get_column="email_address",
+                filter_value=person_id,
+                order_by_column="primary_email",
+                order_ascending=False,
+            )
             return person
 
     def get_people(self):
