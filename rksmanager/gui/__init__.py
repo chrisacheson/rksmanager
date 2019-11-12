@@ -159,8 +159,8 @@ class Gui:
 
     def edit_person(self, person_id=None, before=None):
         """
-        Open or focus the a PersonEditor tab for the specified person or for a
-        new person. Called when the "Create new person record" menu item is
+        Open or focus a PersonEditor tab for the specified person or for a new
+        person. Called when the "Create new person record" menu item is
         selected, or when the Edit button is clicked on a Person Details tab.
 
         Args:
@@ -215,6 +215,11 @@ class Gui:
         self._widgets.tab_holder.close_tab(editor)
 
     def view_people(self):
+        """
+        Open or focus the People tab. Called when the "View People" menu item
+        is selected.
+
+        """
         tab_id = "view_people"
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
@@ -337,11 +342,26 @@ class BaseEditor(BaseDetailsOrEditor):
 
 
 class BaseListModel(QAbstractTableModel):
+    """
+    Generic Model object for holding data to be displayed by a QTableView
+    widget. Subclasses should set the headers attribute to a tuple of column
+    headers to be displayed by the QTableView. For example:
+
+    headers = ("ID", "Name", "Email Address", "Pronouns", "Notes")
+
+    """
     def __init__(self):
         self._data = []
         super().__init__()
 
     def populate(self, data):
+        """
+        Assign a new data set to this model.
+
+        Args:
+            data: The data set as a 2-dimensional list or similar.
+
+        """
         self._data = data
         self.layoutChanged.emit()
 
@@ -362,6 +382,11 @@ class BaseListModel(QAbstractTableModel):
 
 
 class BaseList(QWidget):
+    """
+    Generic table viewer widget. Subclasses should set the model_class
+    attribute to a subclass of BaseListModel.
+
+    """
     def __init__(self):
         super().__init__()
         self.model = self.model_class()
@@ -377,6 +402,7 @@ class BaseList(QWidget):
 
 
 class PersonDetails(BaseDetails):
+    """Viewer widget for Create Person and Person Details tabs."""
     fields = (
         ("id", "Person ID"),
         ("first_name_or_nickname", "First name\nor nickname"),
@@ -388,6 +414,7 @@ class PersonDetails(BaseDetails):
 
 
 class PersonEditor(BaseEditor):
+    """Editor widget for Create Person and Person Details tabs."""
     fields = (
         ("id", "Person ID", Label),
         ("first_name_or_nickname", "First name\nor nickname", LineEdit),
@@ -399,8 +426,10 @@ class PersonEditor(BaseEditor):
 
 
 class PersonListModel(BaseListModel):
+    """Model for holding person data to be displayed by a QTableView."""
     headers = ("ID", "Name", "Email Address", "Pronouns", "Notes")
 
 
 class PersonList(BaseList):
+    """Table viewer widget for the People tab."""
     model_class = PersonListModel
