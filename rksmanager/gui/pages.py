@@ -5,7 +5,7 @@ of a specific record, or editing a record. Smaller "control" widgets go in the
 gui.widgets module.
 
 """
-from PySide2.QtWidgets import (QWidget, QGridLayout, QLabel, QPushButton,
+from PySide2.QtWidgets import (QWidget, QFormLayout, QHBoxLayout, QPushButton,
                                QTableView, QVBoxLayout, QAbstractItemView)
 from PySide2.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel
 
@@ -18,21 +18,15 @@ class BaseDetailsOrEditor(QWidget):
     def __init__(self):
         self._data_widgets = {}
         super().__init__()
-        layout = QGridLayout()
-        layout.setColumnStretch(1, 1)
+        layout = QFormLayout()
         for i, field in enumerate(self.fields):
             if len(field) > 2:
                 field_id, label, widget_type = field
             else:
                 field_id, label = field
                 widget_type = Label
-            label_widget = QLabel(label)
-            font = label_widget.font()
-            font.setBold(True)
-            label_widget.setFont(font)
-            layout.addWidget(label_widget, i, 0)
             widget = widget_type()
-            layout.addWidget(widget, i, 1)
+            layout.addRow(label, widget)
             self._data_widgets[field_id] = widget
         self.setLayout(layout)
 
@@ -67,7 +61,7 @@ class BaseDetails(BaseDetailsOrEditor):
     def __init__(self):
         super().__init__()
         self.edit_button = QPushButton("Edit")
-        self.layout().addWidget(self.edit_button, len(self.fields), 0, 1, -1)
+        self.layout().addRow(self.edit_button)
 
 
 class BaseEditor(BaseDetailsOrEditor):
@@ -86,10 +80,12 @@ class BaseEditor(BaseDetailsOrEditor):
     """
     def __init__(self):
         super().__init__()
+        button_layout = QHBoxLayout()
         self.cancel_button = QPushButton("Cancel")
-        self.layout().addWidget(self.cancel_button, len(self.fields), 0)
+        button_layout.addWidget(self.cancel_button)
         self.save_button = QPushButton("Save")
-        self.layout().addWidget(self.save_button, len(self.fields), 1)
+        button_layout.addWidget(self.save_button)
+        self.layout().addRow(button_layout)
 
     def get_values(self):
         """
