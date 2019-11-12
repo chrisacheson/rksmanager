@@ -1,3 +1,8 @@
+"""
+Main GUI module. Contains the top-level Gui class which sets up the interface
+and controls access to the database handler object.
+
+"""
 import traceback
 import types
 import sys
@@ -145,6 +150,8 @@ class Gui:
             tab = PersonDetails()
             tab.set_values(person_data)
 
+            # Edit button callback. Opens the person in a new Edit Person tab
+            # and closes the Person Details tab.
             def edit():
                 self.edit_person(person_id)
                 self._widgets.tab_holder.close_tab(tab)
@@ -181,6 +188,8 @@ class Gui:
             tab = PersonEditor()
             tab.set_values(person_data)
 
+            # Cancel button callback. Closes the tab. If we were editing an
+            # existing person, open the person in a new Person Details tab.
             def cancel():
                 if person_id:
                     # Go "back" to the details of the person we're editing
@@ -188,6 +197,8 @@ class Gui:
                 self._widgets.tab_holder.close_tab(tab)
             tab.cancel_button.clicked.connect(cancel)
 
+            # Save button callback. Saves the person to the database, closes
+            # the tab, and opens the person in a new Person Details tab.
             def save():
                 self.save_person(tab, person_id)
             tab.save_button.clicked.connect(save)
@@ -222,6 +233,11 @@ class Gui:
         if not tab:
             tab = PersonList()
 
+            # Table double-click callback. Opens the person that was clicked on
+            # in a new Person Details tab.
+            #
+            # Args:
+            #   index: A QModelIndex representing the item that was clicked on.
             def details(index):
                 id_index = index.siblingAtColumn(0)
                 person_id = tab.proxy_model.itemData(id_index)[0]
