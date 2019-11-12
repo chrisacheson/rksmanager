@@ -1,3 +1,8 @@
+"""
+Database access module. Contains the main database handler class. All SQL
+queries belong in this module.
+
+"""
 import sqlite3
 import decimal
 import datetime
@@ -414,6 +419,13 @@ class Database:
             return person
 
     def get_people(self):
+        """
+        Get all people from the database.
+
+        Returns:
+            A list of sqlite3.Row objects.
+
+        """
         with self._connection:
             return self._connection.execute(
                 """
