@@ -8,6 +8,7 @@ import types
 import sys
 
 from PySide2.QtWidgets import QApplication, QMainWindow, QAction
+from PySide2.QtCore import Signal
 
 import rksmanager.database
 from . import dialogboxes
@@ -15,17 +16,22 @@ from .widgets import TabHolder
 from .pages import PersonList, PersonDetails, PersonEditor
 
 
-class Gui:
+class Gui(QApplication):
     """Builds the GUI and handles all user interaction."""
+
+    # Argument will be True if the database is now open, or False if it is now
+    # closed.
+    database_is_open = Signal(bool)
+
     def __init__(self):
         self._db = None
         # For holding references to specific widgets that we need to access
         # later
         self._widgets = types.SimpleNamespace()
+        super().__init__()
 
     def start(self):
         """Display the main window and pass control to the Gui object."""
-        qt_app = QApplication()
         main_window = QMainWindow()
         self._widgets.main_window = main_window
         self._build_menu_bar(main_window)
@@ -36,7 +42,7 @@ class Gui:
         main_window.show()
         if len(sys.argv) > 1:
             self.create_or_open_database(sys.argv[1])
-        qt_app.exec_()
+        self.exec_()
 
     # Build the menu bar and add it to the specified window
     def _build_menu_bar(self, window):
@@ -53,6 +59,7 @@ class Gui:
         close_db_action = QAction(text="Close Database", parent=window)
         close_db_action.triggered.connect(self.close_database)
         close_db_action.setEnabled(False)
+        self.database_is_open.connect(close_db_action.setEnabled)
         self._widgets.close_db_action = close_db_action
         file_menu.addAction(close_db_action)
 
@@ -63,6 +70,7 @@ class Gui:
 
         people_menu = menu_bar.addMenu("People")
         people_menu.setEnabled(False)
+        self.database_is_open.connect(people_menu.setEnabled)
         # TODO: Disable the individual menu items too? Can they be triggered by
         # keyboard shortcuts when the menu is disabled?
         self._widgets.people_menu = people_menu
@@ -93,7 +101,7 @@ class Gui:
         if filename:
             self.close_database()
             self._db = rksmanager.database.Database(filename)
-            self._database_is_open()
+            self.database_is_open.emit(True)
             version = self._db.get_sqlite_user_version()
             if version < self._db.expected_sqlite_user_version:
                 if dialogboxes.convert_database_dialog(window):
@@ -130,7 +138,7 @@ class Gui:
             self._widgets.tab_holder.close_all_tabs()
             self._db.close()
             self._db = None
-            self._database_is_closed()
+            self.database_is_open.emit(False)
 
     def view_person_details(self, person_id, before=None):
         """
@@ -247,16 +255,3 @@ class Gui:
             tab.model.populate(self._db.get_people())
             self._widgets.tab_holder.addTab(tab, "People", tab_id)
         self._widgets.tab_holder.setCurrentWidget(tab)
-
-    # Change the state of various widgets in response to a database being
-    # opened
-    # TODO: Use signals and slots for this instead
-    def _database_is_open(self):
-        self._widgets.close_db_action.setEnabled(True)
-        self._widgets.people_menu.setEnabled(True)
-
-    # Change the state of various widgets in response to a database being
-    # closed
-    def _database_is_closed(self):
-        self._widgets.close_db_action.setEnabled(False)
-        self._widgets.people_menu.setEnabled(False)
