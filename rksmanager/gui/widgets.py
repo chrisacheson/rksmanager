@@ -212,6 +212,20 @@ class GridLayout(QGridLayout):
     A QGridLayout with methods for inserting and removing rows of widgets.
 
     """
+    def get_widget_coordinates(self, widget):
+        """
+        Get the grid coordinates of a single widget managed by this layout.
+
+        Args:
+            widget: Widget to get the coordinates of.
+
+        Returns:
+            A (row, column, rowspan, colspan) tuple.
+
+        """
+        layout_index = self.indexOf(widget)
+        return self.getItemPosition(layout_index)
+
     def get_all_widget_coordinates(self):
         """
         Get the coordinates of all widgets managed by this layout.
@@ -427,8 +441,7 @@ class ListEdit(QWidget):
         #   button: The remove button widget that was clicked. Used to find out
         #       which row to remove.
         def remove(button):
-            layout_index = self.layout.indexOf(button)
-            row_index, _, _, _ = self.layout.getItemPosition(layout_index)
+            row_index, _, _, _ = self.layout.get_widget_coordinates(button)
             self._text_box.setText(self.pop(row_index))
         remove_button = QPushButton("-")
         remove_button.clicked.connect(functools.partial(remove, remove_button))
@@ -534,8 +547,7 @@ class PrimaryItemListEdit(ListEdit):
             #   button: The make primary button widget that was clicked. Used
             #       to find out which string to swap.
             def make_primary(button):
-                layout_index = self.layout.indexOf(button)
-                row_index, _, _, _ = self.layout.getItemPosition(layout_index)
+                row_index, _, _, _ = self.layout.get_widget_coordinates(button)
                 new_primary = self.get_item(row_index)
                 old_primary = self.get_item(0)
                 self.set_item(0, new_primary)
