@@ -1,3 +1,8 @@
+"""
+"Control" widgets that are generically useful. "Task" widgets specific to RKS
+Manager go in the gui.pages module.
+
+"""
 import functools
 
 from PySide2.QtWidgets import (QTabWidget, QWidget, QGridLayout, QLabel,
@@ -19,11 +24,18 @@ class TabHolder(QTabWidget):
         self._tab_ids_inverse = {}
 
     # Establish a new tab ID
+    #
+    # Args:
+    #   tab_id: The tab ID (usually a string) to create.
+    #   widget: The page widget associated with the ID.
     def _new_tab_id(self, tab_id, widget):
         self._tab_ids[tab_id] = widget
         self._tab_ids_inverse[widget] = tab_id
 
     # Delete a tab ID
+    #
+    # Args:
+    #   tab_id: The tab ID (usually a string) to delete.
     def _del_tab_id(self, tab_id):
         widget = self._tab_ids[tab_id]
         del self._tab_ids[tab_id]
@@ -131,30 +143,42 @@ class ValuePropertyMixin:
 
 
 class Label(ValuePropertyMixin, QLabel):
+    """A QLabel with a value property and word wrap enabled by default."""
     def __init__(self):
         super().__init__()
         self.setWordWrap(True)
 
 
 class LineEdit(ValuePropertyMixin, QLineEdit):
-    pass
+    """A QLineEdit with a value property."""
 
 
 class TextEdit(ValuePropertyMixin, QTextEdit):
+    """A QTextEdit with a value property."""
     getter_method = "toPlainText"
     setter_method = "setPlainText"
 
 
 class ListLabel(QLabel):
+    """A label that displays a list of strings."""
     def __init__(self):
         super().__init__()
         self._data = []
 
     def setText(self, items):
+        """
+        Overrides QLabel.setText(). Don't use this, set the value property
+        instead.
+
+        Args:
+            items: List of strings to display.
+
+        """
         super().setText("\n".join(items))
 
     @property
     def value(self):
+        """The widget's current list of strings."""
         return self._data
 
     @value.setter
@@ -164,7 +188,19 @@ class ListLabel(QLabel):
 
 
 class PrimaryItemListLabel(ListLabel):
+    """
+    A ListLabel that displays "(Primary)" next to the first item in the list.
+
+    """
     def setText(self, items):
+        """
+        Overrides ListLabel.setText(). Don't use this, set the value property
+        instead.
+
+        Args:
+            items: List of strings to display.
+
+        """
         new_items = list(items)
         if new_items:
             new_items[0] += " (Primary)"
@@ -172,7 +208,18 @@ class PrimaryItemListLabel(ListLabel):
 
 
 class GridLayout(QGridLayout):
+    """
+    A QGridLayout with methods for inserting and removing rows of widgets.
+
+    """
     def get_all_widget_coordinates(self):
+        """
+        Get the coordinates of all widgets managed by this layout.
+
+        Returns:
+            A list of (widget, row, column, rowspan, colspan) tuples.
+
+        """
         coordinates = []
         for i in range(self.count()):
             widget = self.itemAt(i).widget()
@@ -184,6 +231,19 @@ class GridLayout(QGridLayout):
         return coordinates
 
     def get_widget_coordinates_in_rect(self, row, column, height, width):
+        """
+        Get all of the widgets in the specified rectangular area.
+
+        Args:
+            row: The index of the first row of the rectangle.
+            column: The index of the first column of the rectangle.
+            height: The number of rows in the rectangle.
+            width: The number of columns in the rectangle.
+
+        Returns:
+            A list of (widget, row, column, rowspan, colspan) tuples.
+
+        """
         end_row = row + height - 1
         end_col = column + width - 1
         coordinates = []
@@ -194,6 +254,20 @@ class GridLayout(QGridLayout):
         return coordinates
 
     def remove_widgets_in_rect(self, row, column, height, width):
+        """
+        Remove all of the widgets in the specified rectangular area from the
+        layout.
+
+        Args:
+            row: The index of the first row of the rectangle.
+            column: The index of the first column of the rectangle.
+            height: The number of rows in the rectangle.
+            width: The number of columns in the rectangle.
+
+        Returns:
+            A list of removed widgets.
+
+        """
         widgets = []
         for coordinate in self.get_widget_coordinates_in_rect(row, column,
                                                               height, width):
@@ -204,6 +278,23 @@ class GridLayout(QGridLayout):
 
     def shift_widgets_in_rect(self, row, column, height, width,
                               row_shift, col_shift):
+        """
+        Shift all of the widgets in the specified rectangular area by the
+        specified number of rows and columns.
+
+        Args:
+            row: The index of the first row of the rectangle.
+            column: The index of the first column of the rectangle.
+            height: The number of rows in the rectangle.
+            width: The number of columns in the rectangle.
+            row_shift: The number of rows to shift the widgets by. If positive,
+                the widgets will be shifted downwards, otherwise they'll be
+                shifted upwards.
+            col_shift: The number of columns to shift the widgets by. If
+                positive, the widgets will be shifted rightwards, otherwise
+                they'll be shifted leftwards.
+
+        """
         coordinates = self.get_widget_coordinates_in_rect(row, column,
                                                           height, width)
         for coordinate in coordinates:
@@ -212,6 +303,15 @@ class GridLayout(QGridLayout):
             self.addWidget(w, r + row_shift, c + col_shift, rspan, cspan)
 
     def insert_row(self, insert_index, new_row):
+        """
+        Insert a row of widgets into the layout at the specified row index. The
+        widgets currently in or below that row will be shifted downwards.
+
+        Args:
+            insert_index: The row index at which to insert the new row.
+            new_row: A sequence of (widget, column, colspan) tuples.
+
+        """
         num_rows, num_columns = self.rowCount(), self.columnCount()
         rect_height = num_rows - insert_index
         self.shift_widgets_in_rect(insert_index, 0,
@@ -221,6 +321,17 @@ class GridLayout(QGridLayout):
             self.addWidget(widget, insert_index, column, 1, colspan)
 
     def remove_row(self, index):
+        """
+        Remove a row of widgets from the layout. The widgets below that row
+        will be shifted upwards.
+
+        Args:
+            index: The index of the row to remove.
+
+        Returns:
+            A list of removed widgets.
+
+        """
         num_rows, num_columns = self.rowCount(), self.columnCount()
         removed_widgets = self.remove_widgets_in_rect(index, 0, 1, num_columns)
 
@@ -233,6 +344,18 @@ class GridLayout(QGridLayout):
 
 
 class ListEdit(QWidget):
+    """
+    A widget for editing a list of string values. Each displayed string has a
+    remove button next to it. At the bottom there's a text box and add button
+    for adding new strings. Removing a string will place it in the text box to
+    be edited and re-added if desired.
+
+    """
+    # TODO: Focus the text box and highlight the text whenever it's populated
+    # with a removed string?
+    # TODO: Change the color of the text in the text box to light grey when the
+    # text box doesn't have focus. Indicates to the user that the text won't be
+    # saved unless they actually add it to the list.
     def __init__(self):
         super().__init__()
         # We have to track this ourselves, because QGridLayout.rowCount() never
@@ -242,6 +365,8 @@ class ListEdit(QWidget):
         self.layout = GridLayout()
         self._text_box = QLineEdit()
 
+        # Add button callback. Appends the text in the text box to the list and
+        # clears the text box.
         def add():
             self.append(self._text_box.text())
             self._text_box.setText("")
@@ -252,21 +377,55 @@ class ListEdit(QWidget):
         self.setLayout(self.layout)
 
     def build_text_box_row(self, text_box, add_button):
+        """
+        Place the text box and add button into the layout. Shouldn't be called
+        by external code, but can be overridden by subclasses to change
+        placement behavior.
+
+        Args:
+            text_box: The text box widget.
+            add_button: The add button widget.
+
+        """
         self.layout.insert_row(0, (
             (text_box, 0, 1),  # Column 0, span 1
             (add_button, 1, 1),  # Column 1, span 1
         ))
 
     def build_label_row(self, index, label, remove_button):
+        """
+        Insert a new label and remove button into the layout at the specified
+        row index. Shouldn't be called by external code, but can be overridden
+        by subclasses to change placement behavior.
+
+        Args:
+            index: The index of the row to insert the widgets at.
+            label: The label widget.
+            remove_button: The remove button widget.
+
+        """
         self.layout.insert_row(index, (
             (label, 0, 1),  # Column 0, span 1
             (remove_button, 1, 1),  # Column 1, span 1
         ))
 
     def append(self, text):
+        """
+        Add a new string to the end of the list.
+
+        Args:
+            text: The string to add.
+
+        """
         if (not text) or (text in self.value):
             return
 
+        # Remove button callback. Removes the corresponding string from the
+        # list and puts it in the text box.
+        #
+        # Args:
+        #   button: The remove button widget that was clicked. Used to find out
+        #       which row to remove.
         def remove(button):
             layout_index = self.layout.indexOf(button)
             row_index, _, _, _ = self.layout.getItemPosition(layout_index)
@@ -278,12 +437,34 @@ class ListEdit(QWidget):
         self.num_items += 1
 
     def get_item(self, index):
+        """
+        Get the string at the specified index.
+
+        Args:
+            index: The index of the string to get.
+
+        """
         return self.layout.itemAtPosition(index, 0).widget().text()
 
     def set_item(self, index, text):
+        """
+        Set the string at the specified index.
+
+        Args:
+            index: The index of the string to replace.
+            text: The new string.
+
+        """
         self.layout.itemAtPosition(index, 0).widget().setText(text)
 
     def pop(self, index):
+        """
+        Remove and return the string at the specified index.
+
+        Args:
+            index: The index of the string to remove.
+
+        """
         text = self.get_item(index)
         removed_widgets = self.layout.remove_row(index)
         for widget in removed_widgets:
@@ -293,6 +474,7 @@ class ListEdit(QWidget):
 
     @property
     def value(self):
+        """The widget's current list of strings."""
         data = []
         for i in range(self.num_items):
             data.append(self.get_item(i))
@@ -307,16 +489,50 @@ class ListEdit(QWidget):
 
 
 class PrimaryItemListEdit(ListEdit):
+    """
+    A ListEdit with an extra column, containg either a "(Primary)" label or a
+    "Make Primary" button for each string in the list. Clicking on a make
+    primary button will swap the corresponding string with the current primary
+    string.
+
+    """
     def build_text_box_row(self, text_box, add_button):
+        """
+        Place the text box and add button into the layout, giving the text box
+        a colspan of 2. Overrides ListEdit.build_text_box_row(). Shouldn't be
+        called by external code.
+
+        Args:
+            text_box: The text box widget.
+            add_button: The add button widget.
+
+        """
         self.layout.insert_row(0, (
             (text_box, 0, 2),  # Column 0, span 2
             (add_button, 2, 1),  # Column 2, span 1
         ))
 
     def build_label_row(self, index, label, remove_button):
+        """
+        Insert a new label, make primary button (or primary label), and remove
+        button into the layout at the specified row index. Overrides
+        ListEdit.build_label_row(). Shouldn't be called by external code.
+
+        Args:
+            index: The index of the row to insert the widgets at.
+            label: The label widget.
+            remove_button: The remove button widget.
+
+        """
         if index == 0:
             primary_widget = QLabel("(Primary)")
         else:
+            # Make primary button callback. Swaps the corresponding string with
+            # the current primary string.
+            #
+            # Args:
+            #   button: The make primary button widget that was clicked. Used
+            #       to find out which string to swap.
             def make_primary(button):
                 layout_index = self.layout.indexOf(button)
                 row_index, _, _, _ = self.layout.getItemPosition(layout_index)
@@ -334,6 +550,15 @@ class PrimaryItemListEdit(ListEdit):
         ))
 
     def pop(self, index):
+        """
+        Remove and return the string at the specified index. If this removes
+        the primary string, mark the next string (if any) as primary. Overrides
+        ListEdit.pop().
+
+        Args:
+            index: The index of the string to remove.
+
+        """
         text = super().pop(index)
         if index == 0 and self.num_items:
             # First row was removed and there are still items left, so swap new
