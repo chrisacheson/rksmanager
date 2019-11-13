@@ -6,6 +6,7 @@ and controls access to the database handler object.
 import traceback
 import types
 import sys
+import functools
 
 from PySide2.QtWidgets import QApplication, QMainWindow, QAction
 from PySide2.QtCore import Signal
@@ -22,6 +23,8 @@ class Gui(QApplication):
     # Argument will be True if the database is now open, or False if it is now
     # closed.
     database_is_open = Signal(bool)
+    # TODO: Make this more granular if performance becomes an issue
+    database_modified = Signal()
 
     def __init__(self):
         self._db = None
@@ -154,9 +157,10 @@ class Gui(QApplication):
         tab_id = "person_details_{:d}".format(person_id)
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
-            person_data = self._db.get_person(person_id)
             tab = PersonDetails()
-            tab.set_values(person_data)
+            tab.refresher = functools.partial(self._db.get_person, person_id)
+            tab.refresh()
+            self.database_modified.connect(tab.refresh)
 
             # Edit button callback. Opens the person in a new Edit Person tab
             # and closes the Person Details tab.
@@ -227,6 +231,7 @@ class Gui(QApplication):
 
         """
         person_id = self._db.save_person(editor.get_values(), person_id)
+        self.database_modified.emit()
         self.view_person_details(person_id, editor)
         self._widgets.tab_holder.close_tab(editor)
 
@@ -252,6 +257,8 @@ class Gui(QApplication):
                 self.view_person_details(person_id)
             tab.table_view.doubleClicked.connect(details)
 
-            tab.model.populate(self._db.get_people())
+            tab.refresher = self._db.get_people
+            tab.refresh()
+            self.database_modified.connect(tab.refresh)
             self._widgets.tab_holder.addTab(tab, "People", tab_id)
         self._widgets.tab_holder.setCurrentWidget(tab)

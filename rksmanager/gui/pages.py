@@ -13,6 +13,19 @@ from .widgets import (Label, LineEdit, TextEdit, ListLabel, ListEdit,
                       PrimaryItemListLabel, PrimaryItemListEdit)
 
 
+class RefreshMixin:
+    """
+    Adds a refresh() method to any widget inheriting this, which can be
+    connected to the Gui.database_modified() signal. The widget's refresher
+    attribute should be set to a function that takes no arguments and returns a
+    fresh data set from the database.
+
+    """
+    def refresh(self):
+        """Populate the widget with fresh data from the database."""
+        self.set_values(self.refresher())
+
+
 class BaseDetailsOrEditor(QWidget):
     """Parent class for BaseDetails and BaseEditor."""
     def __init__(self):
@@ -43,7 +56,7 @@ class BaseDetailsOrEditor(QWidget):
             self._data_widgets[key].value = values[key]
 
 
-class BaseDetails(BaseDetailsOrEditor):
+class BaseDetails(RefreshMixin, BaseDetailsOrEditor):
     """
     Generic record viewer widget. Subclasses should set the fields attribute to
     a sequence of 2-tuples or 3-tuples, each containing a field ID and label,
@@ -141,7 +154,7 @@ class BaseListModel(QAbstractTableModel):
                 return self.headers[section]
 
 
-class BaseList(QWidget):
+class BaseList(RefreshMixin, QWidget):
     """
     Generic table viewer widget. Subclasses should set the model_class
     attribute to a subclass of BaseListModel.
@@ -149,9 +162,9 @@ class BaseList(QWidget):
     """
     def __init__(self):
         super().__init__()
-        self.model = self.model_class()
+        self._model = self.model_class()
         self.proxy_model = QSortFilterProxyModel()
-        self.proxy_model.setSourceModel(self.model)
+        self.proxy_model.setSourceModel(self._model)
         layout = QVBoxLayout()
         self.table_view = QTableView()
         self.table_view.setModel(self.proxy_model)
@@ -159,6 +172,17 @@ class BaseList(QWidget):
         self.table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
         layout.addWidget(self.table_view)
         self.setLayout(layout)
+
+    def set_values(self, values):
+        """
+        Set the current values to be displayed by the widget.
+
+        Args:
+            values: The data set as a 2-dimensional list or similar.
+
+        """
+        self._model.populate(values)
+        self.proxy_model.invalidate()
 
 
 class PersonDetails(BaseDetails):
