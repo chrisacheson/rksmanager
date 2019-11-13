@@ -484,3 +484,35 @@ class Database:
                 """,
                 (name,),
             ).lastrowid
+
+    def count_email_addresses(self):
+        """
+        Get the number of email address records in the database.
+
+        Returns:
+            The number of email addresses as an integer.
+
+        """
+        with self._connection:
+            return self._connection.execute(
+                """
+                select count(*)
+                from people_email_addresses
+                """
+            ).fetchone()[0]
+
+    def count_phone_numbers(self):
+        """
+        Get the number of phone number records in the database.
+
+        Returns:
+            The number of phone numbers as an integer.
+
+        """
+        with self._connection:
+            return self._connection.execute(
+                """
+                select count(*)
+                from people_phone_numbers
+                """
+            ).fetchone()[0]

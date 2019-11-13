@@ -284,6 +284,8 @@ class Gui(QApplication):
 
             # Add New Contact Info Type button callback. Prompts the user for a
             # name, then creates a new contact info type with that name.
+            # TODO: Prevent the user from adding "Email" or "Phone" once we get
+            # around to doing validators
             def add():
                 window = self._widgets.main_window
                 name = dialogboxes.add_new_contact_info_type_dialog(window)
@@ -292,9 +294,19 @@ class Gui(QApplication):
                     self.database_modified.emit()
             tab.add_button.clicked.connect(add)
 
-            tab.refresher = self._db.get_other_contact_info_types
+            def refresher():
+                contact_info_types = self._db.get_other_contact_info_types()
+                email_address_count = self._db.count_email_addresses()
+                phone_number_count = self._db.count_phone_numbers()
+                contact_info_types.insert(0, ("", "Email",
+                                              email_address_count))
+                contact_info_types.insert(1, ("", "Phone",
+                                              phone_number_count))
+                return contact_info_types
+            tab.refresher = refresher
             tab.refresh()
             self.database_modified.connect(tab.refresh)
+
             self._widgets.tab_holder.addTab(tab, "Manage Contact Info Types",
                                             tab_id)
         self._widgets.tab_holder.setCurrentWidget(tab)

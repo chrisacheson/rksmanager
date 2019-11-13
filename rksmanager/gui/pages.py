@@ -136,7 +136,9 @@ class BaseListModel(QAbstractTableModel):
 
         """
         self._data = data
-        self.layoutChanged.emit()
+        # For some reason this causes segmentation faults, so we'll just let
+        # the list widget call the proxy model's invalidate() method instead
+        # self.layoutChanged.emit()
 
     def rowCount(self, index):
         return len(self._data)
