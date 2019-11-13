@@ -440,3 +440,47 @@ class Database:
                 and primary_email = 1
                 """
             ).fetchall()
+
+    def get_other_contact_info_types(self):
+        """
+        Get all "other" contact info types from the database.
+
+        Returns:
+            A list of sqlite3.Row objects.
+
+        """
+        with self._connection:
+            return self._connection.execute(
+                """
+                select t.id as id
+                    , name
+                    , count(*) as usage_count
+                from other_contact_info_types t
+                inner join people_other_contact_info i
+                on t.id = i.other_contact_info_type_id
+                group by t.id
+                """
+            ).fetchall()
+
+    def create_other_contact_info_type(self, name):
+        """
+        Create a new "other" contact info type with the specified name.
+
+        Args:
+            name: Name of the new contact info type.
+
+        Returns:
+            The id of the new contact info type as an integer.
+
+        """
+        with self._connection:
+            return self._connection.execute(
+                """
+                insert into other_contact_info_types (
+                    name
+                ) values (
+                    ?
+                )
+                """,
+                (name,),
+            ).lastrowid

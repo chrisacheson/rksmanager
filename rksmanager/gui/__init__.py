@@ -14,7 +14,7 @@ from PySide2.QtCore import Signal
 import rksmanager.database
 from . import dialogboxes
 from .widgets import TabHolder
-from .pages import PersonList, PersonDetails, PersonEditor
+from .pages import PersonList, PersonDetails, PersonEditor, ContactInfoTypeList
 
 
 class Gui(QApplication):
@@ -78,7 +78,7 @@ class Gui(QApplication):
         # keyboard shortcuts when the menu is disabled?
         self._widgets.people_menu = people_menu
 
-        create_person_action = QAction(text="Create new person record...",
+        create_person_action = QAction(text="Create New Person Record...",
                                        parent=window)
         create_person_action.triggered.connect(self.edit_person)
         people_menu.addAction(create_person_action)
@@ -86,6 +86,16 @@ class Gui(QApplication):
         view_people_action = QAction(text="View People", parent=window)
         view_people_action.triggered.connect(self.view_people)
         people_menu.addAction(view_people_action)
+
+        people_menu.addSeparator()
+        manage_contact_info_types_action = QAction(
+            text="Manage Contact Info Types",
+            parent=window,
+        )
+        manage_contact_info_types_action.triggered.connect(
+            self.manage_contact_info_types
+        )
+        people_menu.addAction(manage_contact_info_types_action)
 
     def create_or_open_database(self, filename=None):
         """
@@ -261,4 +271,21 @@ class Gui(QApplication):
             tab.refresh()
             self.database_modified.connect(tab.refresh)
             self._widgets.tab_holder.addTab(tab, "People", tab_id)
+        self._widgets.tab_holder.setCurrentWidget(tab)
+
+    def manage_contact_info_types(self):
+        """
+        Open or focus the Manage Contact Info Types tab. Called when the
+        "Manage Contact Info Types" menu item is selected.
+
+        """
+        tab_id = "manage_contact_info_types"
+        tab = self._widgets.tab_holder.get_tab(tab_id)
+        if not tab:
+            tab = ContactInfoTypeList()
+            tab.refresher = self._db.get_other_contact_info_types
+            tab.refresh()
+            self.database_modified.connect(tab.refresh)
+            self._widgets.tab_holder.addTab(tab, "Manage Contact Info Types",
+                                            tab_id)
         self._widgets.tab_holder.setCurrentWidget(tab)

@@ -217,3 +217,16 @@ class PersonListModel(BaseListModel):
 class PersonList(BaseList):
     """Table viewer widget for the People tab."""
     model_class = PersonListModel
+
+
+class ContactInfoTypeListModel(BaseListModel):
+    """
+    Model for holding contact info type data to be displayed by a QTableView.
+
+    """
+    headers = ("ID", "Name", "Usage Count")
+
+
+class ContactInfoTypeList(BaseList):
+    """Table viewer widget for the Manage Contact Info Types tab."""
+    model_class = ContactInfoTypeListModel
