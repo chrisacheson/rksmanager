@@ -454,9 +454,9 @@ class Database:
                 """
                 select t.id as id
                     , name
-                    , count(*) as usage_count
+                    , count(i.id) as usage_count
                 from other_contact_info_types t
-                inner join people_other_contact_info i
+                left join people_other_contact_info i
                 on t.id = i.other_contact_info_type_id
                 group by t.id
                 """

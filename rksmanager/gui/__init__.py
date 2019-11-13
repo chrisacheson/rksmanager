@@ -63,7 +63,6 @@ class Gui(QApplication):
         close_db_action.triggered.connect(self.close_database)
         close_db_action.setEnabled(False)
         self.database_is_open.connect(close_db_action.setEnabled)
-        self._widgets.close_db_action = close_db_action
         file_menu.addAction(close_db_action)
 
         file_menu.addSeparator()
@@ -76,7 +75,6 @@ class Gui(QApplication):
         self.database_is_open.connect(people_menu.setEnabled)
         # TODO: Disable the individual menu items too? Can they be triggered by
         # keyboard shortcuts when the menu is disabled?
-        self._widgets.people_menu = people_menu
 
         create_person_action = QAction(text="Create New Person Record...",
                                        parent=window)
@@ -283,6 +281,17 @@ class Gui(QApplication):
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
             tab = ContactInfoTypeList()
+
+            # Add New Contact Info Type button callback. Prompts the user for a
+            # name, then creates a new contact info type with that name.
+            def add():
+                window = self._widgets.main_window
+                name = dialogboxes.add_new_contact_info_type_dialog(window)
+                if name is not None:
+                    self._db.create_other_contact_info_type(name)
+                    self.database_modified.emit()
+            tab.add_button.clicked.connect(add)
+
             tab.refresher = self._db.get_other_contact_info_types
             tab.refresh()
             self.database_modified.connect(tab.refresh)

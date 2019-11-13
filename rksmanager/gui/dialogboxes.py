@@ -1,4 +1,4 @@
-from PySide2.QtWidgets import QFileDialog, QMessageBox
+from PySide2.QtWidgets import QFileDialog, QMessageBox, QInputDialog
 
 
 def create_or_open_database_dialog(parent):
@@ -87,3 +87,22 @@ def old_software_dialog(parent):
         ("Database was created with a newer version of RKS Manager. You should"
          " upgrade to the latest version."),
     )
+
+
+def add_new_contact_info_type_dialog(parent):
+    """
+    Ask the user for a name for a new contact info type.
+
+    Args:
+        parent: The parent widget to display the dialog over.
+
+    Returns:
+        The text that the user entered, or None if the user cancelled.
+
+    """
+    text, ok = QInputDialog.getText(parent, "Add New Contact Info Type",
+                                    "Contact Info Type Name:")
+    if ok:
+        return text
+    else:
+        return None

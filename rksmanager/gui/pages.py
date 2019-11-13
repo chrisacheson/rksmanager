@@ -230,3 +230,8 @@ class ContactInfoTypeListModel(BaseListModel):
 class ContactInfoTypeList(BaseList):
     """Table viewer widget for the Manage Contact Info Types tab."""
     model_class = ContactInfoTypeListModel
+
+    def __init__(self):
+        super().__init__()
+        self.add_button = QPushButton("Add New Contact Info Type")
+        self.layout().insertWidget(0, self.add_button)
