@@ -166,7 +166,21 @@ class Gui(QApplication):
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
             tab = PersonDetails()
-            tab.refresher = functools.partial(self._db.get_person, person_id)
+
+            def refresher(person_id):
+                # TODO: Refactor this
+                person_data = self._db.get_person(person_id)
+                contact_info_types = {}
+                for cit in self._db.get_other_contact_info_types():
+                    contact_info_types[cit["id"]] = cit["name"]
+                other_contact_info = []
+                for type_id, contact_info in person_data["other_contact_info"]:
+                    type_name = contact_info_types[type_id]
+                    other_contact_info.append("{}: {}".format(type_name,
+                                                              contact_info))
+                person_data["other_contact_info"] = other_contact_info
+                return person_data
+            tab.refresher = functools.partial(refresher, person_id)
             tab.refresh()
             self.database_modified.connect(tab.refresh)
 

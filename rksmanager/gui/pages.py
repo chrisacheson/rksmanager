@@ -194,6 +194,7 @@ class PersonDetails(BaseDetails):
         ("first_name_or_nickname", "First name\nor nickname"),
         ("aliases", "Aliases", ListLabel),
         ("email_addresses", "Email Addresses", PrimaryItemListLabel),
+        ("other_contact_info", "Other Contact Info", ListLabel),
         ("pronouns", "Pronouns"),
         ("notes", "Notes"),
     )
