@@ -6,7 +6,7 @@ Manager go in the gui.pages module.
 import functools
 
 from PySide2.QtWidgets import (QTabWidget, QWidget, QGridLayout, QLabel,
-                               QLineEdit, QTextEdit, QPushButton)
+                               QLineEdit, QTextEdit, QPushButton, QComboBox)
 
 
 class TabHolder(QTabWidget):
@@ -456,6 +456,9 @@ class ListEdit(QWidget):
         Args:
             index: The index of the string to get.
 
+        Returns:
+            The string.
+
         """
         return self.layout.itemAtPosition(index, 0).widget().text()
 
@@ -476,6 +479,9 @@ class ListEdit(QWidget):
 
         Args:
             index: The index of the string to remove.
+
+        Returns:
+            The string.
 
         """
         text = self.get_item(index)
@@ -580,3 +586,158 @@ class PrimaryItemListEdit(ListEdit):
             primary_button.deleteLater()
             self.layout.addWidget(QLabel("(Primary)"), 0, 1)
         return text
+
+
+class ComboListEdit(QWidget):
+    """
+    A ListEdit for pairs of values. When inputting a new pair, the first value
+    is chosen from a combo box, and the second is entered into the usual text
+    box.
+
+    """
+    def __init__(self):
+        super().__init__()
+        # We have to track this ourselves, because QGridLayout.rowCount() never
+        # shrinks
+        self.num_items = 0
+        self.layout = GridLayout()
+        self._combo_box = QComboBox()
+        self._text_box = QLineEdit()
+
+        # Add button callback. Appends the selected data in the combo box and
+        # the text in the text box to the list and resets both.
+        def add():
+            text = self._text_box.text()
+            if self._combo_box.currentIndex() == 0 or text == "":
+                return
+            self.append((self._combo_box.currentData(), text))
+            self._combo_box.setCurrentIndex(0)
+            self._text_box.setText("")
+        add_button = QPushButton("+")
+        add_button.clicked.connect(add)
+
+        self.layout.insert_row(0, (
+            (self._combo_box, 0, 1),  # Column 0, span 1
+            (self._text_box, 1, 1),  # Column 1, span 1
+            (add_button, 2, 1),  # Column 2, span 1
+        ))
+        self.setLayout(self.layout)
+
+    def append(self, item):
+        """
+        Add a new item to the end of the list.
+
+        Args:
+            item: An (integer, string) tuple to add.
+
+        """
+        combo_data, text = item
+        if (not combo_data) or (not text) or (item in self.value):
+            return
+
+        # Remove button callback. Removes the corresponding item from the list
+        # and puts it in the combo box and text box.
+        #
+        # Args:
+        #   button: The remove button widget that was clicked. Used to find out
+        #       which row to remove.
+        def remove(button):
+            row_index, _, _, _ = self.layout.get_widget_coordinates(button)
+            combo_data, text = self.pop(row_index)
+            combo_index = self._combo_box.findData(combo_data)
+            self._combo_box.setCurrentIndex(combo_index)
+            self._text_box.setText(text)
+        remove_button = QPushButton("-")
+        remove_button.clicked.connect(functools.partial(remove, remove_button))
+
+        combo_index = self._combo_box.findData(combo_data)
+        combo_text = self._combo_box.itemText(combo_index)
+        self.layout.insert_row(self.num_items, (
+            (QLabel(combo_text), 0, 1),  # Column 0, span 1
+            (QLabel(text), 1, 1),  # Column 1, span 1
+            (remove_button, 2, 1),  # Column 2, span 1
+        ))
+        self.num_items += 1
+
+    def get_item(self, index):
+        """
+        Get the item at the specified index.
+
+        Args:
+            index: The index of the item to get.
+
+        Returns:
+            The item at the specified index as an (integer, string) tuple.
+
+        """
+        combo_text = self.layout.itemAtPosition(index, 0).widget().text()
+        combo_index = self._combo_box.findText(combo_text)
+        combo_data = self._combo_box.itemData(combo_index)
+        text = self.layout.itemAtPosition(index, 1).widget().text()
+        return (combo_data, text)
+
+    def pop(self, index):
+        """
+        Remove and return the item at the specified index.
+
+        Args:
+            index: The index of the item to remove.
+
+        Returns:
+            The item as an (integer, string) tuple.
+
+        """
+        item = self.get_item(index)
+        removed_widgets = self.layout.remove_row(index)
+        for widget in removed_widgets:
+            widget.deleteLater()
+        self.num_items -= 1
+        return item
+
+    @property
+    def value(self):
+        """
+        A 2-tuple containing a list of the widget's items, and a list of the
+        combo box's items. For example:
+
+        (
+            [
+                # Widget items. The integers represent which combo box item the
+                # user selected.
+                (2, "Text entered by the user"),
+                (1, "More text entered by the user"),
+                (3, "Even more text entered by the user"),
+            ],
+            [
+                # Combo box items. The integers are item IDs, while the strings
+                # are the text actually shown to the user in the combo box.
+                (1, "Combo box option A"),
+                (2, "Combo box option B"),
+                (3, "Combo box option C"),
+            ],
+        )
+
+        """
+        items = []
+        for i in range(self.num_items):
+            items.append(self.get_item(i))
+        combo_items = []
+        # Skip blank first item
+        for i in range(1, self._combo_box.count()):
+            combo_data = self._combo_box.itemData(i)
+            combo_text = self._combo_box.itemText(i)
+            combo_items.append((combo_data, combo_text))
+        return (items, combo_items)
+
+    @value.setter
+    def value(self, value):
+        while self.num_items:
+            self.pop(0)
+        self._combo_box.clear()
+        items, combo_items = value
+        self._combo_box.addItem("")
+        for combo_item in combo_items:
+            combo_data, combo_text = combo_item
+            self._combo_box.addItem(combo_text, combo_data)
+        for item in items:
+            self.append(item)

@@ -210,6 +210,12 @@ class Database:
                     order_by_column="primary_email",
                     order_ascending=False,
                 )
+                old_other_contact_info = self._get_collection(
+                    table="people_other_contact_info",
+                    filter_column="person_id",
+                    get_column=("other_contact_info_type_id", "contact_info"),
+                    filter_value=person_id,
+                )
             else:
                 person_id = self._connection.execute(
                     """
@@ -227,14 +233,14 @@ class Database:
                 ).lastrowid
                 old_aliases = ()
                 old_email_addresses = ()
+                old_other_contact_info = ()
 
-            new_aliases = data["aliases"]
             self._update_collection(table="people_aliases",
                                     filter_column="person_id",
                                     update_column="alias",
                                     filter_value=person_id,
                                     old_items=old_aliases,
-                                    new_items=new_aliases)
+                                    new_items=data["aliases"])
             new_email_addresses = data["email_addresses"]
             self._update_collection(table="people_email_addresses",
                                     filter_column="person_id",
@@ -265,6 +271,13 @@ class Database:
                     """,
                     {"id": person_id, "email_address": new_email_addresses[0]},
                 )
+            self._update_collection(
+                table="people_other_contact_info",
+                filter_column="person_id",
+                update_column=("other_contact_info_type_id", "contact_info"),
+                filter_value=person_id,
+                old_items=old_other_contact_info,
+                new_items=data["other_contact_info"])
             return person_id
 
     # Update the items of a simple collection associated with a record, such as
@@ -274,9 +287,12 @@ class Database:
     # it for the table, filter_column, or update_column arguments.
     #
     # Args:
-    #   table: Name of the table to update, such as people_aliases.
-    #   filter_column: Column to filter by, such as person_id.
-    #   update_column: Column to update, such as alias.
+    #   table: Name of the table to update, such as "people_aliases".
+    #   filter_column: Column to filter by, such as "person_id".
+    #   update_column: Column or tuple of columns to update, such as "alias" or
+    #       ("other_contact_info_type_id","contact_info"). If multiple columns
+    #       are specified, the each item in old_items and new_items should be a
+    #       tuple of the appropriate size.
     #   filter_value: The value to filter for, such as the ID of a person.
     #   old_items: A sequence consisting of the items currently in the
     #       collection.
@@ -284,58 +300,101 @@ class Database:
     #       kept in the collection.
     def _update_collection(self, table, filter_column, update_column,
                            filter_value, old_items, new_items):
-                old_items = set(old_items)
-                new_items = set(new_items)
-                remove_items = old_items - new_items
-                add_items = new_items - old_items
-                for old, new in itertools.zip_longest(remove_items, add_items):
-                    if old and new:
-                        # We have both new and old items left, so swap an old
-                        # one for a new one
-                        query = (
-                            """
-                            update {table}
-                            set {update_column} = :new
-                            where {filter_column} = :filter_value
-                            and {update_column} = :old
-                            """
-                        ).format(table=table,
-                                 filter_column=filter_column,
-                                 update_column=update_column)
-                        parameters = {"old": old, "new": new,
-                                      "filter_value": filter_value}
-                    elif old:
-                        # We've run out of new items and only have old ones
-                        # left, so delete this one
-                        query = (
-                            """
-                            delete from {table}
-                            where {filter_column} = :filter_value
-                            and {update_column} = :old
-                            """
-                        ).format(table=table,
-                                 filter_column=filter_column,
-                                 update_column=update_column)
-                        parameters = {"old": old, "filter_value": filter_value}
-                    elif new:
-                        # We've run out of old items and only have new ones
-                        # left, so insert this one
-                        query = (
-                            """
-                            insert into {table} (
-                                {filter_column}
-                                , {update_column}
-                            ) values (
-                                :filter_value
-                                , :new
-                            )
-                            """
-                        ).format(table=table,
-                                 filter_column=filter_column,
-                                 update_column=update_column)
-                        parameters = {"new": new, "filter_value": filter_value}
+        # TODO: Refactor this abomination
+        if isinstance(update_column, str):
+            update_columns = (update_column,)
+            new_tuples = [(new,) for new in new_items]
+            old_tuples = [(old,) for old in old_items]
+        else:
+            update_columns = update_column
+            new_tuples = new_items
+            old_tuples = old_items
+        old_tuples = set(old_tuples)
+        new_tuples = set(new_tuples)
+        remove_tuples = old_tuples - new_tuples
+        add_tuples = new_tuples - old_tuples
+        for old, new in itertools.zip_longest(remove_tuples, add_tuples):
+            parameters = {"filter_value": filter_value}
+            if old is not None and new is not None:
+                # We have both new and old items left, so swap an old
+                # one for a new one
+                new_assignments = []
+                old_comparisons = []
+                for i, column in enumerate(update_columns):
+                    new_param = "new{index}".format(index=i)
+                    old_param = "old{index}".format(index=i)
+                    parameters[new_param] = new[i]
+                    parameters[old_param] = old[i]
+                    new_assignments.append(
+                        "{column} = :{new_param}".format(column=column,
+                                                         new_param=new_param)
+                    )
+                    old_comparisons.append(
+                        "{column} = :{old_param}".format(column=column,
+                                                         old_param=old_param)
+                    )
+                new_assignments_sql = ",".join(new_assignments)
+                old_comparisons_sql = " and ".join(old_comparisons)
+                query = (
+                    """
+                    update {table}
+                    set {new_assignments_sql}
+                    where {filter_column} = :filter_value
+                    and {old_comparisons_sql}
+                    """
+                ).format(table=table,
+                         new_assignments_sql=new_assignments_sql,
+                         filter_column=filter_column,
+                         old_comparisons_sql=old_comparisons_sql)
+            elif old is not None:
+                # We've run out of new items and only have old ones
+                # left, so delete this one
+                old_comparisons = []
+                for i, column in enumerate(update_columns):
+                    old_param = "old{index}".format(index=i)
+                    parameters[old_param] = old[i]
+                    old_comparisons.append(
+                        "{column} = :{old_param}".format(column=column,
+                                                         old_param=old_param)
+                    )
+                old_comparisons_sql = " and ".join(old_comparisons)
+                query = (
+                    """
+                    delete from {table}
+                    where {filter_column} = :filter_value
+                    and {old_comparisons_sql}
+                    """
+                ).format(table=table,
+                         filter_column=filter_column,
+                         old_comparisons_sql=old_comparisons_sql)
+            elif new is not None:
+                # We've run out of old items and only have new ones
+                # left, so insert this one
+                new_parameters = []
+                for i, column in enumerate(update_columns):
+                    new_param = "new{index}".format(index=i)
+                    new_parameters.append(
+                        ":{new_param}".format(new_param=new_param)
+                    )
+                    parameters[new_param] = new[i]
+                insert_columns_sql = ",".join(update_columns)
+                values_sql = ",".join(new_parameters)
+                query = (
+                    """
+                    insert into {table} (
+                        {filter_column}
+                        , {insert_columns_sql}
+                    ) values (
+                        :filter_value
+                        , {values_sql}
+                    )
+                    """
+                ).format(table=table,
+                         filter_column=filter_column,
+                         insert_columns_sql=insert_columns_sql,
+                         values_sql=values_sql)
 
-                    self._connection.execute(query, parameters)
+            self._connection.execute(query, parameters)
 
     # Get the items of a simple collection associated with a record, such as
     # the aliases associated with a person.
@@ -345,18 +404,25 @@ class Database:
     # arguments.
     #
     # Args:
-    #   table: Name of the table to query, such as people_aliases.
-    #   filter_column: Column to filter by, such as person_id.
-    #   get_column: Column to get data from, such as alias.
+    #   table: Name of the table to query, such as "people_aliases".
+    #   filter_column: Column to filter by, such as "person_id".
+    #   get_column: Column or tuple of columns to get data from, such
+    #       as "alias" or ("other_contact_info_type_id","contact_info").
     #   filter_value: The value to filter for, such as the ID of a person.
     #   order_by_column: Optional column to order results by.
     #   order_ascending: Optional direction to order results by. Defaults to
     #       True. Has no effect if order_by_column is unspecified.
     #
     # Returns:
-    #   A list containing the collection's items.
+    #   A list containing the collection's items. If multiple columns were
+    #   specified for the get_column argument, this will be a list of
+    #   sqlite3.Row objects. Otherwise it will be a list of raw values.
     def _get_collection(self, table, filter_column, get_column, filter_value,
                         order_by_column=None, order_ascending=True):
+        if isinstance(get_column, str):
+            get_columns_sql = get_column
+        else:
+            get_columns_sql = ",".join(get_column)
         if order_by_column:
             order_by_sql = "order by {order_by_column} {direction}".format(
                 order_by_column=order_by_column,
@@ -366,17 +432,20 @@ class Database:
             order_by_sql = ""
         query = (
             """
-            select {get_column}
+            select {get_columns_sql}
             from {table}
             where {filter_column} = ?
             {order_by_sql}
             """
         ).format(table=table,
                  filter_column=filter_column,
-                 get_column=get_column,
+                 get_columns_sql=get_columns_sql,
                  order_by_sql=order_by_sql)
         rows = self._connection.execute(query, (filter_value,)).fetchall()
-        return [row[get_column] for row in rows]
+        if rows and len(rows[0]) > 1:
+            return rows
+        else:
+            return [row[0] for row in rows]
 
     def get_person(self, person_id):
         """
@@ -415,6 +484,12 @@ class Database:
                 filter_value=person_id,
                 order_by_column="primary_email",
                 order_ascending=False,
+            )
+            person["other_contact_info"] = self._get_collection(
+                table="people_other_contact_info",
+                filter_column="person_id",
+                get_column=("other_contact_info_type_id", "contact_info"),
+                filter_value=person_id,
             )
             return person
 

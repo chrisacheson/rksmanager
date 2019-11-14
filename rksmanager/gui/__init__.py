@@ -197,14 +197,20 @@ class Gui(QApplication):
         """
         if person_id:
             tab_id = "edit_person_{:d}".format(person_id)
-            title = "Edit Person ({:d})".format(person_id)
-            person_data = self._db.get_person(person_id)
         else:
             tab_id = "create_person"
-            title = "Create Person"
-            person_data = {"id": "Not assigned yet"}
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
+            if person_id:
+                title = "Edit Person ({:d})".format(person_id)
+                person_data = self._db.get_person(person_id)
+            else:
+                title = "Create Person"
+                person_data = {"id": "Not assigned yet"}
+            oci_types = self._db.get_other_contact_info_types()
+            combo_items = [(cit["id"], cit["name"]) for cit in oci_types]
+            oci = person_data["other_contact_info"]
+            person_data["other_contact_info"] = (oci, combo_items)
             tab = PersonEditor()
             tab.set_values(person_data)
 
@@ -238,7 +244,11 @@ class Gui(QApplication):
                 person will be created.
 
         """
-        person_id = self._db.save_person(editor.get_values(), person_id)
+        values = editor.get_values()
+        # ComboListEdit gives us a list of widget items and a list of combo box
+        # items. We only want the former.
+        values["other_contact_info"], _ = values["other_contact_info"]
+        person_id = self._db.save_person(values, person_id)
         self.database_modified.emit()
         self.view_person_details(person_id, editor)
         self._widgets.tab_holder.close_tab(editor)

@@ -10,7 +10,7 @@ from PySide2.QtWidgets import (QWidget, QFormLayout, QHBoxLayout, QPushButton,
 from PySide2.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel
 
 from .widgets import (Label, LineEdit, TextEdit, ListLabel, ListEdit,
-                      PrimaryItemListLabel, PrimaryItemListEdit)
+                      PrimaryItemListLabel, PrimaryItemListEdit, ComboListEdit)
 
 
 class RefreshMixin:
@@ -206,6 +206,7 @@ class PersonEditor(BaseEditor):
         ("first_name_or_nickname", "First name\nor nickname", LineEdit),
         ("aliases", "Aliases", ListEdit),
         ("email_addresses", "Email Addresses", PrimaryItemListEdit),
+        ("other_contact_info", "Other Contact Info", ComboListEdit),
         ("pronouns", "Pronouns", LineEdit),
         ("notes", "Notes", TextEdit),
     )
