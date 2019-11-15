@@ -239,3 +239,21 @@ class ContactInfoTypeList(BaseList):
         super().__init__()
         self.add_button = QPushButton("Add New Contact Info Type")
         self.layout().insertWidget(0, self.add_button)
+
+
+class MembershipTypeListModel(BaseListModel):
+    """
+    Model for holding membership type data to be displayed by a QTableView.
+
+    """
+    headers = ("ID", "Name", "Active Count")
+
+
+class MembershipTypeList(BaseList):
+    """Table viewer widget for the Manage Membership Types tab."""
+    model_class = MembershipTypeListModel
+
+    def __init__(self):
+        super().__init__()
+        self.add_button = QPushButton("Add New Membership Type")
+        self.layout().insertWidget(0, self.add_button)

@@ -106,3 +106,22 @@ def add_new_contact_info_type_dialog(parent):
         return text
     else:
         return None
+
+
+def add_new_membership_type_dialog(parent):
+    """
+    Ask the user for a name for a new membership type.
+
+    Args:
+        parent: The parent widget to display the dialog over.
+
+    Returns:
+        The text that the user entered, or None if the user cancelled.
+
+    """
+    text, ok = QInputDialog.getText(parent, "Add New Membership Type",
+                                    "Membership Type Name:")
+    if ok:
+        return text
+    else:
+        return None

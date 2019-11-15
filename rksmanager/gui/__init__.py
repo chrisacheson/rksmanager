@@ -14,7 +14,8 @@ from PySide2.QtCore import Signal
 import rksmanager.database
 from . import dialogboxes
 from .widgets import TabHolder
-from .pages import PersonList, PersonDetails, PersonEditor, ContactInfoTypeList
+from .pages import (PersonList, PersonDetails, PersonEditor,
+                    ContactInfoTypeList, MembershipTypeList)
 
 
 class Gui(QApplication):
@@ -94,6 +95,15 @@ class Gui(QApplication):
             self.manage_contact_info_types
         )
         people_menu.addAction(manage_contact_info_types_action)
+
+        manage_membership_types_action = QAction(
+            text="Manage Membership Types",
+            parent=window,
+        )
+        manage_membership_types_action.triggered.connect(
+            self.manage_membership_types
+        )
+        people_menu.addAction(manage_membership_types_action)
 
     def create_or_open_database(self, filename=None):
         """
@@ -332,5 +342,34 @@ class Gui(QApplication):
             self.database_modified.connect(tab.refresh)
 
             self._widgets.tab_holder.addTab(tab, "Manage Contact Info Types",
+                                            tab_id)
+        self._widgets.tab_holder.setCurrentWidget(tab)
+
+    def manage_membership_types(self):
+        """
+        Open or focus the Manage Membership Types tab. Called when the "Manage
+        Membership Types" menu item is selected.
+
+        """
+        tab_id = "manage_membership_types"
+        tab = self._widgets.tab_holder.get_tab(tab_id)
+        if not tab:
+            tab = MembershipTypeList()
+
+            # Add New Membership Type button callback. Prompts the user for a
+            # name, then creates a new membership type with that name.
+            def add():
+                window = self._widgets.main_window
+                name = dialogboxes.add_new_membership_type_dialog(window)
+                if name is not None:
+                    self._db.create_membership_type(name)
+                    self.database_modified.emit()
+            tab.add_button.clicked.connect(add)
+
+            tab.refresher = self._db.get_membership_types
+            tab.refresh()
+            self.database_modified.connect(tab.refresh)
+
+            self._widgets.tab_holder.addTab(tab, "Manage Membership Types",
                                             tab_id)
         self._widgets.tab_holder.setCurrentWidget(tab)

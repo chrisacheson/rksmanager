@@ -622,3 +622,52 @@ class Database:
                 from people_phone_numbers
                 """
             ).fetchone()[0]
+
+    def get_membership_types(self):
+        """
+        Get all membership types from the database.
+
+        Returns:
+            A list of sqlite3.Row objects.
+
+        """
+        with self._connection:
+            return self._connection.execute(
+                """
+                select t.id as id
+                    , name
+                    , count(m.id) as active_count
+                from membership_types t
+                left join people_memberships m
+                on t.id = m.membership_type_id
+                and m.begin_date <= date('now')
+                and (
+                    date('now') <= m.end_date
+                    or m.end_date is null
+                    )
+                group by t.id
+                """
+            ).fetchall()
+
+    def create_membership_type(self, name):
+        """
+        Create a new membership type with the specified name.
+
+        Args:
+            name: Name of the new membership type.
+
+        Returns:
+            The id of the new membership type as an integer.
+
+        """
+        with self._connection:
+            return self._connection.execute(
+                """
+                insert into membership_types (
+                    name
+                ) values (
+                    ?
+                )
+                """,
+                (name,),
+            ).lastrowid
