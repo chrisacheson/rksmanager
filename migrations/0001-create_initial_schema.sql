@@ -69,13 +69,20 @@ create table people_other_contact_info (
     , unique(other_contact_info_type_id, contact_info)
 );
 
--- Membership types such as normal, trial, board, and honorary
+-- Membership types such as bronze, silver, gold, honorary, etc.
 create table membership_types (
     id integer primary key
     , name text not null unique
+);
+
+-- Pricing options for each membership type, such as $20 per 1 month, $55 per 3
+-- months, etc.
+create table membership_type_pricing_options (
+    id integer primary key
+    , membership_type_id integer not null references membership_types(id)
     , length_months integer not null -- How many months the membership lasts per
-                                     -- dues payment
-    , dues decimal_text not null
+                                     -- payment
+    , price decimal_text not null
 );
 
 -- Any memberships that a person has or had
