@@ -229,12 +229,13 @@ class Gui(QApplication):
             if person_id:
                 title = "Edit Person ({:d})".format(person_id)
                 person_data = self._db.get_person(person_id)
+                oci = person_data["other_contact_info"]
             else:
                 title = "Create Person"
                 person_data = {"id": "Not assigned yet"}
+                oci = ()
             oci_types = self._db.get_other_contact_info_types()
             combo_items = [(cit["id"], cit["name"]) for cit in oci_types]
-            oci = person_data["other_contact_info"]
             person_data["other_contact_info"] = (oci, combo_items)
             tab = PersonEditor()
             tab.set_values(person_data)
