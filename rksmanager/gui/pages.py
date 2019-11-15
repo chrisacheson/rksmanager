@@ -5,6 +5,8 @@ of a specific record, or editing a record. Smaller "control" widgets go in the
 gui.widgets module.
 
 """
+from decimal import Decimal
+
 from PySide2.QtWidgets import (QWidget, QFormLayout, QHBoxLayout, QPushButton,
                                QTableView, QVBoxLayout, QAbstractItemView)
 from PySide2.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel
@@ -149,7 +151,12 @@ class BaseListModel(QAbstractTableModel):
     def data(self, index, role):
         if role == Qt.DisplayRole:
             row = self._data[index.row()]
-            return row[index.column()]
+            cell = row[index.column()]
+            if isinstance(cell, Decimal):
+                # QTableView won't display Decimal objects, so return a float
+                return float(cell)
+            else:
+                return cell
 
     def headerData(self, section, orientation, role):
         if role == Qt.DisplayRole and orientation == Qt.Horizontal:
@@ -257,3 +264,33 @@ class MembershipTypeList(BaseList):
         super().__init__()
         self.add_button = QPushButton("Add New Membership Type")
         self.layout().insertWidget(0, self.add_button)
+
+
+class MembershipPricingOptionListModel(BaseListModel):
+    """
+    Model for holding membership pricing option data to be displayed by a
+    QTableView.
+
+    """
+    headers = ("ID", "Length (Months)", "Price")
+
+
+class MembershipPricingOptionList(BaseList):
+    """Table viewer widget for the Membership Type Pricing Options tab."""
+    model_class = MembershipPricingOptionListModel
+
+    def __init__(self):
+        super().__init__()
+        self.add_button = QPushButton("Add New Pricing Option")
+        self.layout().insertWidget(0, self.add_button)
+
+
+class MembershipPricingOptionEditor(BaseEditor):
+    """Editor widget for Create Pricing Option and Edit Pricing Option tabs."""
+    fields = (
+        ("id", "Pricing Option ID", Label),
+        ("membership_type_id", "Membership Type ID", Label),
+        ("membership_type_name", "Membership Type Name", Label),
+        ("length_months", "Length (Months)", LineEdit),
+        ("price", "Price", LineEdit),
+    )

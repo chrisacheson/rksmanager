@@ -15,7 +15,8 @@ import rksmanager.database
 from . import dialogboxes
 from .widgets import TabHolder
 from .pages import (PersonList, PersonDetails, PersonEditor,
-                    ContactInfoTypeList, MembershipTypeList)
+                    ContactInfoTypeList, MembershipTypeList,
+                    MembershipPricingOptionList, MembershipPricingOptionEditor)
 
 
 class Gui(QApplication):
@@ -165,7 +166,8 @@ class Gui(QApplication):
     def view_person_details(self, person_id, before=None):
         """
         Open or focus the Person Details tab for the specified person. Called
-        after the user clicks save in the Create Person tab.
+        after the user clicks save in the Create Person tab or when they double
+        click on a person in the View People tab.
 
         Args:
             person_id: The ID of the person to show the details of.
@@ -368,10 +370,125 @@ class Gui(QApplication):
                     self.database_modified.emit()
             tab.add_button.clicked.connect(add)
 
+            # Table double-click callback. Opens or focuses the Membership Type
+            # Pricing Options tab for the membership type that was clicked on.
+            #
+            # Args:
+            #   index: A QModelIndex representing the item that was clicked on.
+            def pricing_options(index):
+                id_index = index.siblingAtColumn(0)
+                membership_type_id = tab.proxy_model.itemData(id_index)[0]
+                self.membership_type_pricing_options(membership_type_id)
+            tab.table_view.doubleClicked.connect(pricing_options)
+
             tab.refresher = self._db.get_membership_types
             tab.refresh()
             self.database_modified.connect(tab.refresh)
 
             self._widgets.tab_holder.addTab(tab, "Manage Membership Types",
                                             tab_id)
+        self._widgets.tab_holder.setCurrentWidget(tab)
+
+    def membership_type_pricing_options(self, membership_type_id):
+        """
+        Open or focus the Membership Type Pricing Options tab for the specified
+        membership type. Called when a membership type in the "Manage
+        Membership Types" tab is double clicked.
+
+        """
+        tab_id = "membership_type_pricing_options_{:d}".format(
+            membership_type_id
+        )
+        tab = self._widgets.tab_holder.get_tab(tab_id)
+        if not tab:
+            tab = MembershipPricingOptionList()
+            mtype_data = self._db.get_membership_type(membership_type_id)
+            mtype_name = mtype_data["name"]
+
+            # Add New Pricing Option button callback. Open or focus a Create
+            # Pricing Option tab for this membership type.
+            def add():
+                self.edit_pricing_option(membership_type_id)
+            tab.add_button.clicked.connect(add)
+
+            # Table double-click callback. Opens or focuses the Edit Pricing
+            # Option tab for the pricing option that was clicked on.
+            #
+            # Args:
+            #   index: A QModelIndex representing the item that was clicked on.
+            def edit(index):
+                id_index = index.siblingAtColumn(0)
+                pricing_option_id = tab.proxy_model.itemData(id_index)[0]
+                self.edit_pricing_option(membership_type_id, pricing_option_id)
+            tab.table_view.doubleClicked.connect(edit)
+
+            tab.refresher = functools.partial(
+                self._db.get_membership_type_pricing_options,
+                membership_type_id,
+            )
+            tab.refresh()
+            self.database_modified.connect(tab.refresh)
+
+            self._widgets.tab_holder.addTab(
+                tab,
+                "{} Membership Type Pricing Options".format(mtype_name),
+                tab_id,
+            )
+        self._widgets.tab_holder.setCurrentWidget(tab)
+
+    def edit_pricing_option(self, membership_type_id, pricing_option_id=None):
+        """
+        Open or focus a MembershipPricingOptionEditor tab for the specified
+        pricing option or for a new pricing option. Called when the "Add New
+        Pricing Option" button is clicked, or when a pricing option is double
+        clicked on a Membership Type Pricing Options tab.
+
+        Args:
+            membership_type_id: ID of the membership type that the pricing
+                option belongs to.
+            pricing_option_id: Optional ID of the pricing option to edit. If
+                unspecified the editor will create a new pricing option when
+                the save button is clicked.
+
+        """
+        if pricing_option_id:
+            tab_id = "edit_pricing_option_{:d}".format(pricing_option_id)
+        else:
+            tab_id = "create_pricing_option_{:d}".format(membership_type_id)
+        tab = self._widgets.tab_holder.get_tab(tab_id)
+        if not tab:
+            if pricing_option_id:
+                po_data = self._db.get_membership_type_pricing_option(
+                    pricing_option_id
+                )
+                mtype_name = po_data["membership_type_name"]
+                title = "Edit {} Membership Pricing Option".format(mtype_name)
+            else:
+                mtype_data = self._db.get_membership_type(membership_type_id)
+                title = "Create {} Membership Pricing Option".format(
+                    mtype_data["name"]
+                )
+                po_data = {"id": "Not assigned yet",
+                           "membership_type_id": membership_type_id,
+                           "membership_type_name": mtype_data["name"]}
+            tab = MembershipPricingOptionEditor()
+            tab.set_values(po_data)
+
+            # Cancel button callback. Closes the tab.
+            def cancel():
+                self._widgets.tab_holder.close_tab(tab)
+            tab.cancel_button.clicked.connect(cancel)
+
+            # Save button callback. Saves the pricing option to the database
+            # and closes the tab.
+            def save():
+                values = tab.get_values()
+                self._db.save_membership_type_pricing_option(
+                    values, pricing_option_id
+                )
+                self.database_modified.emit()
+                self._widgets.tab_holder.close_tab(tab)
+            tab.save_button.clicked.connect(save)
+
+            self._widgets.tab_holder.addTab(tab, title, tab_id)
         self._widgets.tab_holder.setCurrentWidget(tab)

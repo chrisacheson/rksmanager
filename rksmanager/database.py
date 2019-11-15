@@ -671,3 +671,120 @@ class Database:
                 """,
                 (name,),
             ).lastrowid
+
+    def get_membership_type(self, membership_type_id):
+        """
+        Get the specified membership type from the database.
+
+        Args:
+            membership_type_id: The ID of the membership type.
+
+        Returns:
+            A sqlite3.Row object.
+
+        """
+        with self._connection:
+            return self._connection.execute(
+                """
+                select id
+                    , name
+                from membership_types
+                where id = ?
+                """,
+                (membership_type_id,),
+            ).fetchone()
+
+    def get_membership_type_pricing_options(self, membership_type_id):
+        """
+        Get all pricing options for the specified membership type from the
+        database.
+
+        Args:
+            membership_type_id: The ID of the membership type.
+
+        Returns:
+            A list of sqlite3.Row objects.
+
+        """
+        with self._connection:
+            return self._connection.execute(
+                """
+                select id
+                    , length_months
+                    , price
+                from membership_type_pricing_options
+                where membership_type_id = ?
+                """,
+                (membership_type_id,),
+            ).fetchall()
+
+    def get_membership_type_pricing_option(self, pricing_option_id):
+        """
+        Get the specified pricing option from the database.
+
+        Args:
+            pricing_option_id: The ID of the pricing option.
+
+        Returns:
+            A sqlite3.Row object.
+
+        """
+        with self._connection:
+            return self._connection.execute(
+                """
+                select p.id as id
+                    , membership_type_id
+                    , t.name as membership_type_name
+                    , length_months
+                    , price
+                from membership_type_pricing_options p
+                inner join membership_types t
+                on t.id = p.membership_type_id
+                where p.id = ?
+                """,
+                (pricing_option_id,),
+            ).fetchone()
+
+    def save_membership_type_pricing_option(self, data,
+                                            pricing_option_id=None):
+        """
+        Insert a new pricing option into the database or update the specified
+        pricing option.
+
+        Args:
+            data: A dictionary of values to be inserted/updated.
+            pricing_option_id: Optional ID of the pricing option to update. If
+                unspecified, a new pricing option will be inserted.
+
+        Returns:
+            The id of the pricing option as an integer.
+
+        """
+        with self._connection:
+            if pricing_option_id:
+                data["id"] = pricing_option_id
+                self._connection.execute(
+                    """
+                    update membership_type_pricing_options
+                    set length_months = :length_months
+                        , price = :price
+                    where id = :id
+                    """,
+                    data,
+                )
+            else:
+                pricing_option_id = self._connection.execute(
+                    """
+                    insert into membership_type_pricing_options (
+                        membership_type_id
+                        , length_months
+                        , price
+                    ) values (
+                        :membership_type_id
+                        , :length_months
+                        , :price
+                    )
+                    """,
+                    data,
+                ).lastrowid
+            return pricing_option_id
