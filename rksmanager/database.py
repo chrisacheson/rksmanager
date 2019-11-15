@@ -300,7 +300,6 @@ class Database:
     #       kept in the collection.
     def _update_collection(self, table, filter_column, update_column,
                            filter_value, old_items, new_items):
-        # TODO: Refactor this abomination
         if isinstance(update_column, str):
             update_columns = (update_column,)
             new_tuples = [(new,) for new in new_items]
@@ -314,87 +313,28 @@ class Database:
         remove_tuples = old_tuples - new_tuples
         add_tuples = new_tuples - old_tuples
         for old, new in itertools.zip_longest(remove_tuples, add_tuples):
-            parameters = {"filter_value": filter_value}
             if old is not None and new is not None:
                 # We have both new and old items left, so swap an old
                 # one for a new one
-                new_assignments = []
-                old_comparisons = []
-                for i, column in enumerate(update_columns):
-                    new_param = "new{index}".format(index=i)
-                    old_param = "old{index}".format(index=i)
-                    parameters[new_param] = new[i]
-                    parameters[old_param] = old[i]
-                    new_assignments.append(
-                        "{column} = :{new_param}".format(column=column,
-                                                         new_param=new_param)
-                    )
-                    old_comparisons.append(
-                        "{column} = :{old_param}".format(column=column,
-                                                         old_param=old_param)
-                    )
-                new_assignments_sql = ",".join(new_assignments)
-                old_comparisons_sql = " and ".join(old_comparisons)
-                query = (
-                    """
-                    update {table}
-                    set {new_assignments_sql}
-                    where {filter_column} = :filter_value
-                    and {old_comparisons_sql}
-                    """
-                ).format(table=table,
-                         new_assignments_sql=new_assignments_sql,
-                         filter_column=filter_column,
-                         old_comparisons_sql=old_comparisons_sql)
+                column_values = dict(zip(update_columns, new))
+                where_conditions = dict(zip(update_columns, old))
+                where_conditions[filter_column] = filter_value
+                self._dynamic_update(table=table,
+                                     column_values=column_values,
+                                     where_conditions=where_conditions)
             elif old is not None:
                 # We've run out of new items and only have old ones
                 # left, so delete this one
-                old_comparisons = []
-                for i, column in enumerate(update_columns):
-                    old_param = "old{index}".format(index=i)
-                    parameters[old_param] = old[i]
-                    old_comparisons.append(
-                        "{column} = :{old_param}".format(column=column,
-                                                         old_param=old_param)
-                    )
-                old_comparisons_sql = " and ".join(old_comparisons)
-                query = (
-                    """
-                    delete from {table}
-                    where {filter_column} = :filter_value
-                    and {old_comparisons_sql}
-                    """
-                ).format(table=table,
-                         filter_column=filter_column,
-                         old_comparisons_sql=old_comparisons_sql)
+                where_conditions = dict(zip(update_columns, old))
+                where_conditions[filter_column] = filter_value
+                self._dynamic_delete(table=table,
+                                     where_conditions=where_conditions)
             elif new is not None:
                 # We've run out of old items and only have new ones
                 # left, so insert this one
-                new_parameters = []
-                for i, column in enumerate(update_columns):
-                    new_param = "new{index}".format(index=i)
-                    new_parameters.append(
-                        ":{new_param}".format(new_param=new_param)
-                    )
-                    parameters[new_param] = new[i]
-                insert_columns_sql = ",".join(update_columns)
-                values_sql = ",".join(new_parameters)
-                query = (
-                    """
-                    insert into {table} (
-                        {filter_column}
-                        , {insert_columns_sql}
-                    ) values (
-                        :filter_value
-                        , {values_sql}
-                    )
-                    """
-                ).format(table=table,
-                         filter_column=filter_column,
-                         insert_columns_sql=insert_columns_sql,
-                         values_sql=values_sql)
-
-            self._connection.execute(query, parameters)
+                column_values = dict(zip(update_columns, new))
+                column_values[filter_column] = filter_value
+                self._dynamic_insert(table=table, column_values=column_values)
 
     # Get the items of a simple collection associated with a record, such as
     # the aliases associated with a person.
@@ -415,8 +355,8 @@ class Database:
     #
     # Returns:
     #   A list containing the collection's items. If multiple columns were
-    #   specified for the get_column argument, this will be a list of
-    #   sqlite3.Row objects. Otherwise it will be a list of raw values.
+    #   specified for the get_column argument, this will be a list of tuples.
+    #   Otherwise it will be a list of single values.
     def _get_collection(self, table, filter_column, get_column, filter_value,
                         order_by_column=None, order_ascending=True):
         if isinstance(get_column, str):
@@ -443,9 +383,100 @@ class Database:
                  order_by_sql=order_by_sql)
         rows = self._connection.execute(query, (filter_value,)).fetchall()
         if rows and len(rows[0]) > 1:
-            return rows
+            return [tuple(row) for row in rows]
         else:
             return [row[0] for row in rows]
+
+    # Build and execute a dynamic SQL insert statement.
+    #
+    # DO NOT pass any unsanitized data for the table argument or any of the
+    # column names in the column_values dictionary.
+    #
+    # Args:
+    #   table: Name of the table to insert into.
+    #   column_values: A dictionary of column names and corresponding values to
+    #       insert.
+    def _dynamic_insert(self, table, column_values):
+        column_names = column_values.keys()
+        column_names_sql = ",".join(column_names)
+        insert_params = [":{}".format(col) for col in column_names]
+        insert_params_sql = ",".join(insert_params)
+        query = (
+            """
+            insert into {table} (
+                {column_names_sql}
+            ) values (
+                {insert_params_sql}
+            )
+            """
+        ).format(table=table,
+                 column_names_sql=column_names_sql,
+                 insert_params_sql=insert_params_sql)
+        self._connection.execute(query, column_values)
+
+    # Build and execute a dynamic SQL delete statement.
+    #
+    # DO NOT pass any unsanitized data for the table argument or any of the
+    # column names in the where_conditions dictionary.
+    #
+    # Args:
+    #   table: Name of the table to insert into.
+    #   where_conditions: A dictionary of column names and corresponding values
+    #       which must match in order for a row to be deleted.
+    def _dynamic_delete(self, table, where_conditions):
+        column_names = where_conditions.keys()
+        comparisons = ["{c}=:{c}".format(c=c) for c in column_names]
+        where_conditions_sql = " and ".join(comparisons)
+        query = (
+            """
+            delete from {table}
+            where {where_conditions_sql}
+            """
+        ).format(table=table,
+                 where_conditions_sql=where_conditions_sql)
+        self._connection.execute(query, where_conditions)
+
+    # Build and execute a dynamic SQL update statement.
+    #
+    # DO NOT pass any unsanitized data for the table argument or any of the
+    # column names in the column_values or where_conditions dictionaries.
+    #
+    # Args:
+    #   table: Name of the table to insert into.
+    #   column_values: A dictionary of column names and corresponding values to
+    #       set.
+    #   where_conditions: A dictionary of column names and corresponding values
+    #       which must match in order for a row to be updated.
+    def _dynamic_update(self, table, column_values, where_conditions):
+        parameters = {}
+        assignments = []
+        for column_name, set_value in column_values.items():
+            param = "{column_name}_set".format(column_name=column_name)
+            parameters[param] = set_value
+            assignments.append(
+                "{column_name}=:{param}".format(column_name=column_name,
+                                                param=param)
+            )
+        conditions = []
+        for column_name, where_value in where_conditions.items():
+            param = "{column_name}_where".format(column_name=column_name)
+            parameters[param] = where_value
+            conditions.append(
+                "{column_name}=:{param}".format(column_name=column_name,
+                                                param=param)
+            )
+        assignments_sql = ",".join(assignments)
+        conditions_sql = " and ".join(conditions)
+        query = (
+            """
+            update {table}
+            set {assignments_sql}
+            where {conditions_sql}
+            """
+        ).format(table=table,
+                 assignments_sql=assignments_sql,
+                 conditions_sql=conditions_sql)
+        self._connection.execute(query, parameters)
 
     def get_person(self, person_id):
         """
