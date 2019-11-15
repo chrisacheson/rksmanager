@@ -50,26 +50,39 @@ class Gui(QApplication):
 
     # Build the menu bar and add it to the specified window
     def _build_menu_bar(self, window):
+
+        # Convenience function for creating menu items.
+        #
+        # Args:
+        #   text: The text shown on the menu item.
+        #   menu: The menu to add the item to.
+        #   triggered: Slot to connect the menu item's triggered signal to.
+        #
+        # Returns:
+        #   The newly created QAction widget.
+        def add_action(text, menu, triggered):
+            action = QAction(text=text, parent=window)
+            action.triggered.connect(triggered)
+            menu.addAction(action)
+            return action
+
         menu_bar = window.menuBar()
         file_menu = menu_bar.addMenu("File")
 
-        create_or_open_db_action = QAction(text="Create or Open Database...",
-                                           parent=window)
-        create_or_open_db_action.triggered.connect(
-            lambda x: self.create_or_open_database()
-        )
-        file_menu.addAction(create_or_open_db_action)
-
-        close_db_action = QAction(text="Close Database", parent=window)
-        close_db_action.triggered.connect(self.close_database)
+        add_action(text="Create or Open Database...",
+                   menu=file_menu,
+                   triggered=lambda x: self.create_or_open_database())
+        close_db_action = add_action(text="Close Database",
+                                     menu=file_menu,
+                                     triggered=self.close_database)
         close_db_action.setEnabled(False)
         self.database_is_open.connect(close_db_action.setEnabled)
-        file_menu.addAction(close_db_action)
 
         file_menu.addSeparator()
-        exit_action = QAction(text="Exit", parent=window)
-        exit_action.triggered.connect(self._widgets.main_window.close)
-        file_menu.addAction(exit_action)
+
+        add_action(text="Exit",
+                   menu=file_menu,
+                   triggered=self._widgets.main_window.close)
 
         people_menu = menu_bar.addMenu("People")
         people_menu.setEnabled(False)
@@ -77,33 +90,21 @@ class Gui(QApplication):
         # TODO: Disable the individual menu items too? Can they be triggered by
         # keyboard shortcuts when the menu is disabled?
 
-        create_person_action = QAction(text="Create New Person Record...",
-                                       parent=window)
-        create_person_action.triggered.connect(self.edit_person)
-        people_menu.addAction(create_person_action)
-
-        view_people_action = QAction(text="View People", parent=window)
-        view_people_action.triggered.connect(self.view_people)
-        people_menu.addAction(view_people_action)
+        add_action(text="Create New Person Record...",
+                   menu=people_menu,
+                   triggered=self.edit_person)
+        add_action(text="View People",
+                   menu=people_menu,
+                   triggered=self.view_people)
 
         people_menu.addSeparator()
-        manage_contact_info_types_action = QAction(
-            text="Manage Contact Info Types",
-            parent=window,
-        )
-        manage_contact_info_types_action.triggered.connect(
-            self.manage_contact_info_types
-        )
-        people_menu.addAction(manage_contact_info_types_action)
 
-        manage_membership_types_action = QAction(
-            text="Manage Membership Types",
-            parent=window,
-        )
-        manage_membership_types_action.triggered.connect(
-            self.manage_membership_types
-        )
-        people_menu.addAction(manage_membership_types_action)
+        add_action(text="Manage Contact Info Types",
+                   menu=people_menu,
+                   triggered=self.manage_contact_info_types)
+        add_action(text="Manage Membership Types",
+                   menu=people_menu,
+                   triggered=self.manage_membership_types)
 
     def create_or_open_database(self, filename=None):
         """
