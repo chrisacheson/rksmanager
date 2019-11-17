@@ -28,15 +28,30 @@ class RefreshMixin:
         self.data = self.refresher()
 
 
-class BaseDetailsOrEditor(QWidget):
-    """Parent class for BaseDetails and BaseEditor."""
-    def __init__(self, data=None):
-        """
-        Args:
-            data: Optional initial data set. Can be set later using the data
-                attribute.
+class BaseEditor(QWidget):
+    """
+    Generic record editor widget. Subclasses should set the fields attribute to
+    a sequence of 2-tuples or 3-tuples, each containing a field ID and label,
+    and optionally a widget class. If unspecified, the widget class defaults to
+    LineEdit. The default can be changed with the default_widget attribute. For
+    example:
 
-        """
+        default_widget = MySpecialCustomInputWidget
+        fields = (
+            ("id", "Person ID", Label),
+            ("first_name_or_nickname", "First name or nickname"),
+            ("pronouns", "Pronouns"),
+            ("notes", "Notes", TextEdit),
+        )
+
+    Args:
+        data: Optional initial data set. Can be set later using the data
+            attribute.
+
+    """
+    default_widget = LineEdit
+
+    def __init__(self, data=None):
         self._data = data or dict()
         self._data_widgets = {}
         super().__init__()
@@ -46,12 +61,27 @@ class BaseDetailsOrEditor(QWidget):
                 field_id, label, widget_type = field
             else:
                 field_id, label = field
-                widget_type = Label
+                widget_type = self.default_widget
             widget = widget_type()
             layout.addRow(label, widget)
             self._data_widgets[field_id] = widget
+        self.place_buttons()
         self.values = self._data
         self.setLayout(layout)
+
+    def place_buttons(self):
+        """
+        Place the cancel and save buttons into the layout. Shouldn't be called
+        by external code, but can be overridden by subclasses to change
+        which buttons are used and how they are placed.
+
+        """
+        button_layout = QHBoxLayout()
+        self.cancel_button = QPushButton("Cancel")
+        button_layout.addWidget(self.cancel_button)
+        self.save_button = QPushButton("Save")
+        button_layout.addWidget(self.save_button)
+        self.layout().addRow(button_layout)
 
     @property
     def data(self):
@@ -95,49 +125,33 @@ class BaseDetailsOrEditor(QWidget):
             self._data_widgets[key].value = values[key]
 
 
-class BaseDetails(RefreshMixin, BaseDetailsOrEditor):
+class BaseDetails(RefreshMixin, BaseEditor):
     """
     Generic record viewer widget. Subclasses should set the fields attribute to
     a sequence of 2-tuples or 3-tuples, each containing a field ID and label,
-    and optionally a widget class (defaults to Label). For example:
+    and optionally a widget class. If unspecified, the widget class defaults to
+    Label. The default can be changed with the default_widget attribute. For
+    example:
 
-    fields = (
-        ("id", "Person ID"),
-        ("first_name_or_nickname", "First name\nor nickname"),
-        ("aliases", "Aliases", ListLabel),
-        ("pronouns", "Pronouns"),
-        ("notes", "Notes"),
-    )
+        default_widget = MySpecialCustomLabelWidget
+        fields = (
+            ("id", "Person ID"),
+            ("first_name_or_nickname", "First name or nickname"),
+            ("aliases", "Aliases", ListLabel),
+            ("pronouns", "Pronouns"),
+            ("notes", "Notes"),
+        )
+
+    Args:
+        data: Optional initial data set. Can be set later using the data
+            attribute.
 
     """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    default_widget = Label
+
+    def place_buttons(self):
         self.edit_button = QPushButton("Edit")
         self.layout().addRow(self.edit_button)
-
-
-class BaseEditor(BaseDetailsOrEditor):
-    """
-    Generic record editor widget. Subclasses should set the fields attribute to
-    a sequence of 3-tuples, each containing a field ID, label, and widget
-    class. For example:
-
-    fields = (
-        ("id", "Person ID", Label),
-        ("first_name_or_nickname", "First name or nickname", LineEdit),
-        ("pronouns", "Pronouns", LineEdit),
-        ("notes", "Notes", TextEdit),
-    )
-
-    """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        button_layout = QHBoxLayout()
-        self.cancel_button = QPushButton("Cancel")
-        button_layout.addWidget(self.cancel_button)
-        self.save_button = QPushButton("Save")
-        button_layout.addWidget(self.save_button)
-        self.layout().addRow(button_layout)
 
 
 class BaseListModel(QAbstractTableModel):
