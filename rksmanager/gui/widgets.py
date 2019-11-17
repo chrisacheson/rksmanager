@@ -112,11 +112,14 @@ class ValuePropertyMixin:
     """
     Add a value property to any widget inheriting this. Widgets that use
     methods other than text() and setText() to get and set their value should
-    set the getter_method and setter_method attributes appropriately.
+    set the getter_method and setter_method attributes appropriately. Non-text
+    widgets should also set their empty_value attribute to whatever value the
+    widget has before its value is set.
 
     """
     getter_method = "text"
     setter_method = "setText"
+    empty_value = None
 
     @property
     def value(self):
@@ -161,6 +164,8 @@ class TextEdit(ValuePropertyMixin, QTextEdit):
 
 class ListLabel(QLabel):
     """A label that displays a list of strings."""
+    empty_value = []
+
     def __init__(self):
         super().__init__()
         self._data = []
@@ -370,6 +375,8 @@ class ListEdit(QWidget):
     # TODO: Change the color of the text in the text box to light grey when the
     # text box doesn't have focus. Indicates to the user that the text won't be
     # saved unless they actually add it to the list.
+    empty_value = []
+
     def __init__(self):
         super().__init__()
         # We have to track this ourselves, because QGridLayout.rowCount() never
@@ -595,6 +602,8 @@ class ComboListEdit(QWidget):
     box.
 
     """
+    empty_value = ([], [])
+
     def __init__(self):
         super().__init__()
         # We have to track this ourselves, because QGridLayout.rowCount() never

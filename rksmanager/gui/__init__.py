@@ -14,9 +14,10 @@ from PySide2.QtCore import Signal
 import rksmanager.database
 from . import dialogboxes
 from .widgets import TabHolder
-from .pages import (PersonList, PersonDetails, PersonEditor,
+from .pages import (PersonList, PersonDetails, PersonEditor, PersonCreator,
                     ContactInfoTypeList, MembershipTypeList,
-                    MembershipPricingOptionList, MembershipPricingOptionEditor)
+                    MembershipPricingOptionList, MembershipPricingOptionEditor,
+                    MembershipPricingOptionCreator)
 
 
 class Gui(QApplication):
@@ -175,11 +176,9 @@ class Gui(QApplication):
                 front of.
 
         """
-        tab_id = "person_details_{:d}".format(person_id)
+        tab_id = PersonDetails.tab_id.format(person_id)
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
-            tab = PersonDetails()
-
             def refresher(person_id):
                 # TODO: Refactor this
                 person_data = self._db.get_person(person_id)
@@ -193,8 +192,9 @@ class Gui(QApplication):
                                                               contact_info))
                 person_data["other_contact_info"] = other_contact_info
                 return person_data
-            tab.refresher = functools.partial(refresher, person_id)
-            tab.refresh()
+            bound_refresher = functools.partial(refresher, person_id)
+            tab = PersonDetails(data=bound_refresher())
+            tab.refresher = bound_refresher
             self.database_modified.connect(tab.refresh)
 
             # Edit button callback. Opens the person in a new Edit Person tab
@@ -204,7 +204,7 @@ class Gui(QApplication):
                 self._widgets.tab_holder.close_tab(tab)
             tab.edit_button.clicked.connect(edit)
 
-            title = "Person Details ({:d})".format(person_id)
+            title = tab.tab_name.format(**tab.data)
             self._widgets.tab_holder.addTab(tab, title, tab_id, before)
         self._widgets.tab_holder.setCurrentWidget(tab)
 
@@ -223,24 +223,23 @@ class Gui(QApplication):
 
         """
         if person_id:
-            tab_id = "edit_person_{:d}".format(person_id)
+            tab_id = PersonEditor.tab_id.format(person_id)
         else:
-            tab_id = "create_person"
+            tab_id = PersonCreator.tab_id
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
             if person_id:
-                title = "Edit Person ({:d})".format(person_id)
                 person_data = self._db.get_person(person_id)
                 oci = person_data["other_contact_info"]
+                page_type = PersonEditor
             else:
-                title = "Create Person"
                 person_data = {"id": "Not assigned yet"}
                 oci = ()
+                page_type = PersonCreator
             oci_types = self._db.get_other_contact_info_types()
             combo_items = [(cit["id"], cit["name"]) for cit in oci_types]
             person_data["other_contact_info"] = (oci, combo_items)
-            tab = PersonEditor()
-            tab.set_values(person_data)
+            tab = page_type(data=person_data)
 
             # Cancel button callback. Closes the tab. If we were editing an
             # existing person, open the person in a new Person Details tab.
@@ -257,6 +256,7 @@ class Gui(QApplication):
                 self.save_person(tab, person_id)
             tab.save_button.clicked.connect(save)
 
+            title = tab.tab_name.format(**tab.data)
             self._widgets.tab_holder.addTab(tab, title, tab_id, before)
         self._widgets.tab_holder.setCurrentWidget(tab)
 
@@ -272,7 +272,7 @@ class Gui(QApplication):
                 person will be created.
 
         """
-        values = editor.get_values()
+        values = editor.values
         # ComboListEdit gives us a list of widget items and a list of combo box
         # items. We only want the former.
         values["other_contact_info"], _ = values["other_contact_info"]
@@ -287,7 +287,7 @@ class Gui(QApplication):
         is selected.
 
         """
-        tab_id = "view_people"
+        tab_id = PersonList.tab_id
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
             tab = PersonList()
@@ -306,7 +306,7 @@ class Gui(QApplication):
             tab.refresher = self._db.get_people
             tab.refresh()
             self.database_modified.connect(tab.refresh)
-            self._widgets.tab_holder.addTab(tab, "People", tab_id)
+            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id)
         self._widgets.tab_holder.setCurrentWidget(tab)
 
     def manage_contact_info_types(self):
@@ -315,7 +315,7 @@ class Gui(QApplication):
         "Manage Contact Info Types" menu item is selected.
 
         """
-        tab_id = "manage_contact_info_types"
+        tab_id = ContactInfoTypeList.tab_id
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
             tab = ContactInfoTypeList()
@@ -345,8 +345,7 @@ class Gui(QApplication):
             tab.refresh()
             self.database_modified.connect(tab.refresh)
 
-            self._widgets.tab_holder.addTab(tab, "Manage Contact Info Types",
-                                            tab_id)
+            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id)
         self._widgets.tab_holder.setCurrentWidget(tab)
 
     def manage_membership_types(self):
@@ -355,7 +354,7 @@ class Gui(QApplication):
         Membership Types" menu item is selected.
 
         """
-        tab_id = "manage_membership_types"
+        tab_id = MembershipTypeList.tab_id
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
             tab = MembershipTypeList()
@@ -385,8 +384,7 @@ class Gui(QApplication):
             tab.refresh()
             self.database_modified.connect(tab.refresh)
 
-            self._widgets.tab_holder.addTab(tab, "Manage Membership Types",
-                                            tab_id)
+            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id)
         self._widgets.tab_holder.setCurrentWidget(tab)
 
     def membership_type_pricing_options(self, membership_type_id):
@@ -396,9 +394,7 @@ class Gui(QApplication):
         Membership Types" tab is double clicked.
 
         """
-        tab_id = "membership_type_pricing_options_{:d}".format(
-            membership_type_id
-        )
+        tab_id = MembershipPricingOptionList.tab_id.format(membership_type_id)
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
             tab = MembershipPricingOptionList()
@@ -429,11 +425,8 @@ class Gui(QApplication):
             tab.refresh()
             self.database_modified.connect(tab.refresh)
 
-            self._widgets.tab_holder.addTab(
-                tab,
-                "{} Membership Type Pricing Options".format(mtype_name),
-                tab_id,
-            )
+            title = tab.tab_name.format(membership_type_name=mtype_name)
+            self._widgets.tab_holder.addTab(tab, title, tab_id)
         self._widgets.tab_holder.setCurrentWidget(tab)
 
     def edit_pricing_option(self, membership_type_id, pricing_option_id=None):
@@ -452,27 +445,23 @@ class Gui(QApplication):
 
         """
         if pricing_option_id:
-            tab_id = "edit_pricing_option_{:d}".format(pricing_option_id)
+            page_type = MembershipPricingOptionEditor
+            tab_id = page_type.tab_id.format(pricing_option_id)
         else:
-            tab_id = "create_pricing_option_{:d}".format(membership_type_id)
+            page_type = MembershipPricingOptionCreator
+            tab_id = page_type.tab_id.format(membership_type_id)
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
             if pricing_option_id:
                 po_data = self._db.get_membership_type_pricing_option(
                     pricing_option_id
                 )
-                mtype_name = po_data["membership_type_name"]
-                title = "Edit {} Membership Pricing Option".format(mtype_name)
             else:
                 mtype_data = self._db.get_membership_type(membership_type_id)
-                title = "Create {} Membership Pricing Option".format(
-                    mtype_data["name"]
-                )
                 po_data = {"id": "Not assigned yet",
                            "membership_type_id": membership_type_id,
                            "membership_type_name": mtype_data["name"]}
-            tab = MembershipPricingOptionEditor()
-            tab.set_values(po_data)
+            tab = page_type(po_data)
 
             # Cancel button callback. Closes the tab.
             def cancel():
@@ -482,13 +471,13 @@ class Gui(QApplication):
             # Save button callback. Saves the pricing option to the database
             # and closes the tab.
             def save():
-                values = tab.get_values()
-                self._db.save_membership_type_pricing_option(
-                    values, pricing_option_id
-                )
+                self._db.save_membership_type_pricing_option(tab.values,
+                                                             pricing_option_id)
                 self.database_modified.emit()
                 self._widgets.tab_holder.close_tab(tab)
             tab.save_button.clicked.connect(save)
 
-            self._widgets.tab_holder.addTab(tab, title, tab_id)
+            self._widgets.tab_holder.addTab(tab,
+                                            tab.tab_name.format(**tab.data),
+                                            tab_id)
         self._widgets.tab_holder.setCurrentWidget(tab)

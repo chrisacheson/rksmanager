@@ -25,12 +25,19 @@ class RefreshMixin:
     """
     def refresh(self):
         """Populate the widget with fresh data from the database."""
-        self.set_values(self.refresher())
+        self.data = self.refresher()
 
 
 class BaseDetailsOrEditor(QWidget):
     """Parent class for BaseDetails and BaseEditor."""
-    def __init__(self):
+    def __init__(self, data=None):
+        """
+        Args:
+            data: Optional initial data set. Can be set later using the data
+                attribute.
+
+        """
+        self._data = data or dict()
         self._data_widgets = {}
         super().__init__()
         layout = QFormLayout()
@@ -43,16 +50,46 @@ class BaseDetailsOrEditor(QWidget):
             widget = widget_type()
             layout.addRow(label, widget)
             self._data_widgets[field_id] = widget
+        self.values = self._data
         self.setLayout(layout)
 
-    def set_values(self, values):
+    @property
+    def data(self):
         """
-        Set the current values of all of the viewer/editor's data widgets.
+        The page's current data set (a dictionary of field id and widget
+        value pairs), without any modifications by the user.
 
-        Args:
-            values: A dictionary of field_id and widget value pairs.
+        Setting this will replace the data set and update any widget values
+        that haven't been changed by the user.
 
         """
+        return self._data
+
+    @data.setter
+    def data(self, data):
+        keys = self._data_widgets.keys() & data.keys()
+        for key in keys:
+            widget = self._data_widgets[key]
+            if self._data.get(key, widget.empty_value) == widget.value:
+                widget.value = data[key]
+        self._data = data
+
+    @property
+    def values(self):
+        """
+        The current values of all of the page's data widgets as a dictionary of
+        field id and widget value pairs.
+
+        Setting this will update the values of all of the data widgets.
+
+        """
+        values = dict()
+        for field_id, widget in self._data_widgets.items():
+            values[field_id] = widget.value
+        return values
+
+    @values.setter
+    def values(self, values):
         keys = self._data_widgets.keys() & values.keys()
         for key in keys:
             self._data_widgets[key].value = values[key]
@@ -73,8 +110,8 @@ class BaseDetails(RefreshMixin, BaseDetailsOrEditor):
     )
 
     """
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.edit_button = QPushButton("Edit")
         self.layout().addRow(self.edit_button)
 
@@ -93,27 +130,14 @@ class BaseEditor(BaseDetailsOrEditor):
     )
 
     """
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         button_layout = QHBoxLayout()
         self.cancel_button = QPushButton("Cancel")
         button_layout.addWidget(self.cancel_button)
         self.save_button = QPushButton("Save")
         button_layout.addWidget(self.save_button)
         self.layout().addRow(button_layout)
-
-    def get_values(self):
-        """
-        Get the current values of all of the editor's data widgets.
-
-        Returns:
-            A dictionary of field_id and widget value pairs.
-
-        """
-        values = {}
-        for field_id, widget in self._data_widgets.items():
-            values[field_id] = widget.value
-        return values
 
 
 class BaseListModel(QAbstractTableModel):
@@ -126,7 +150,7 @@ class BaseListModel(QAbstractTableModel):
 
     """
     def __init__(self):
-        self._data = []
+        self.dataset = []
         super().__init__()
 
     def populate(self, data):
@@ -137,20 +161,20 @@ class BaseListModel(QAbstractTableModel):
             data: The data set as a 2-dimensional list or similar.
 
         """
-        self._data = data
+        self.dataset = data
         # For some reason this causes segmentation faults, so we'll just let
         # the list widget call the proxy model's invalidate() method instead
         # self.layoutChanged.emit()
 
     def rowCount(self, index):
-        return len(self._data)
+        return len(self.dataset)
 
     def columnCount(self, index):
         return len(self.headers)
 
     def data(self, index, role):
         if role == Qt.DisplayRole:
-            row = self._data[index.row()]
+            row = self.dataset[index.row()]
             cell = row[index.column()]
             if isinstance(cell, Decimal):
                 # QTableView won't display Decimal objects, so return a float
@@ -182,20 +206,22 @@ class BaseList(RefreshMixin, QWidget):
         layout.addWidget(self.table_view)
         self.setLayout(layout)
 
-    def set_values(self, values):
-        """
-        Set the current values to be displayed by the widget.
+    @property
+    def data(self):
+        """The page's current data set (a 2-dimensional sequence)."""
+        return self._model.dataset
 
-        Args:
-            values: The data set as a 2-dimensional list or similar.
-
-        """
-        self._model.populate(values)
+    @data.setter
+    def data(self, data):
+        self._model.populate(data)
         self.proxy_model.invalidate()
 
 
 class PersonDetails(BaseDetails):
     """Viewer widget for Create Person and Person Details tabs."""
+    tab_id = "person_details_{:d}"
+    tab_name = "Person Details ({id:d}: {first_name_or_nickname})"
+
     fields = (
         ("id", "Person ID"),
         ("first_name_or_nickname", "First name\nor nickname"),
@@ -208,7 +234,10 @@ class PersonDetails(BaseDetails):
 
 
 class PersonEditor(BaseEditor):
-    """Editor widget for Create Person and Person Details tabs."""
+    """Editor widget for the Person Details tab."""
+    tab_id = "edit_person_{:d}"
+    tab_name = "Edit Person ({id:d}: {first_name_or_nickname})"
+
     fields = (
         ("id", "Person ID", Label),
         ("first_name_or_nickname", "First name\nor nickname", LineEdit),
@@ -220,6 +249,12 @@ class PersonEditor(BaseEditor):
     )
 
 
+class PersonCreator(PersonEditor):
+    """Editor widget for the Create Person tab."""
+    tab_id = "create_person"
+    tab_name = "Create Person"
+
+
 class PersonListModel(BaseListModel):
     """Model for holding person data to be displayed by a QTableView."""
     headers = ("ID", "Name", "Email Address", "Pronouns", "Notes")
@@ -227,6 +262,9 @@ class PersonListModel(BaseListModel):
 
 class PersonList(BaseList):
     """Table viewer widget for the People tab."""
+    tab_id = "view_people"
+    tab_name = "People"
+
     model_class = PersonListModel
 
 
@@ -240,6 +278,9 @@ class ContactInfoTypeListModel(BaseListModel):
 
 class ContactInfoTypeList(BaseList):
     """Table viewer widget for the Manage Contact Info Types tab."""
+    tab_id = "manage_contact_info_types"
+    tab_name = "Manage Contact Info Types"
+
     model_class = ContactInfoTypeListModel
 
     def __init__(self):
@@ -258,6 +299,9 @@ class MembershipTypeListModel(BaseListModel):
 
 class MembershipTypeList(BaseList):
     """Table viewer widget for the Manage Membership Types tab."""
+    tab_id = "manage_membership_types"
+    tab_name = "Manage Membership Types"
+
     model_class = MembershipTypeListModel
 
     def __init__(self):
@@ -277,6 +321,9 @@ class MembershipPricingOptionListModel(BaseListModel):
 
 class MembershipPricingOptionList(BaseList):
     """Table viewer widget for the Membership Type Pricing Options tab."""
+    tab_id = "membership_type_pricing_options_{:d}"
+    tab_name = "{membership_type_name} Membership Pricing Options"
+
     model_class = MembershipPricingOptionListModel
 
     def __init__(self):
@@ -286,7 +333,10 @@ class MembershipPricingOptionList(BaseList):
 
 
 class MembershipPricingOptionEditor(BaseEditor):
-    """Editor widget for Create Pricing Option and Edit Pricing Option tabs."""
+    """Editor widget for the Edit Pricing Option tab."""
+    tab_id = "edit_pricing_option_{:d}"
+    tab_name = "Edit {membership_type_name} Membership Pricing Option"
+
     fields = (
         ("id", "Pricing Option ID", Label),
         ("membership_type_id", "Membership Type ID", Label),
@@ -294,3 +344,9 @@ class MembershipPricingOptionEditor(BaseEditor):
         ("length_months", "Length (Months)", LineEdit),
         ("price", "Price", LineEdit),
     )
+
+
+class MembershipPricingOptionCreator(MembershipPricingOptionEditor):
+    """Editor widget for the Create Pricing Option tab."""
+    tab_id = "create_pricing_option_{:d}"
+    tab_name = "Create {membership_type_name} Membership Pricing Option"
