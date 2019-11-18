@@ -176,7 +176,7 @@ class Gui(QApplication):
                 front of.
 
         """
-        tab_id = PersonDetails.tab_id.format(person_id)
+        tab_id = PersonDetails.get_tab_id(person_id)
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
             def refresher(person_id):
@@ -204,8 +204,7 @@ class Gui(QApplication):
                 self._widgets.tab_holder.close_tab(tab)
             tab.edit_button.clicked.connect(edit)
 
-            title = tab.tab_name.format(**tab.data)
-            self._widgets.tab_holder.addTab(tab, title, tab_id, before)
+            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id, before)
         self._widgets.tab_holder.setCurrentWidget(tab)
 
     def edit_person(self, person_id=None, before=None):
@@ -223,9 +222,9 @@ class Gui(QApplication):
 
         """
         if person_id:
-            tab_id = PersonEditor.tab_id.format(person_id)
+            tab_id = PersonEditor.get_tab_id(person_id)
         else:
-            tab_id = PersonCreator.tab_id
+            tab_id = PersonCreator.get_tab_id()
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
             if person_id:
@@ -256,8 +255,7 @@ class Gui(QApplication):
                 self.save_person(tab, person_id)
             tab.save_button.clicked.connect(save)
 
-            title = tab.tab_name.format(**tab.data)
-            self._widgets.tab_holder.addTab(tab, title, tab_id, before)
+            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id, before)
         self._widgets.tab_holder.setCurrentWidget(tab)
 
     def save_person(self, editor, person_id=None):
@@ -287,7 +285,7 @@ class Gui(QApplication):
         is selected.
 
         """
-        tab_id = PersonList.tab_id
+        tab_id = PersonList.get_tab_id()
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
             tab = PersonList()
@@ -315,7 +313,7 @@ class Gui(QApplication):
         "Manage Contact Info Types" menu item is selected.
 
         """
-        tab_id = ContactInfoTypeList.tab_id
+        tab_id = ContactInfoTypeList.get_tab_id()
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
             tab = ContactInfoTypeList()
@@ -354,7 +352,7 @@ class Gui(QApplication):
         Membership Types" menu item is selected.
 
         """
-        tab_id = MembershipTypeList.tab_id
+        tab_id = MembershipTypeList.get_tab_id()
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
             tab = MembershipTypeList()
@@ -394,12 +392,11 @@ class Gui(QApplication):
         Membership Types" tab is double clicked.
 
         """
-        tab_id = MembershipPricingOptionList.tab_id.format(membership_type_id)
+        tab_id = MembershipPricingOptionList.get_tab_id(membership_type_id)
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
-            tab = MembershipPricingOptionList()
             mtype_data = self._db.get_membership_type(membership_type_id)
-            mtype_name = mtype_data["name"]
+            tab = MembershipPricingOptionList(extra_data=mtype_data)
 
             # Add New Pricing Option button callback. Open or focus a Create
             # Pricing Option tab for this membership type.
@@ -425,8 +422,7 @@ class Gui(QApplication):
             tab.refresh()
             self.database_modified.connect(tab.refresh)
 
-            title = tab.tab_name.format(membership_type_name=mtype_name)
-            self._widgets.tab_holder.addTab(tab, title, tab_id)
+            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id)
         self._widgets.tab_holder.setCurrentWidget(tab)
 
     def edit_pricing_option(self, membership_type_id, pricing_option_id=None):
@@ -446,10 +442,10 @@ class Gui(QApplication):
         """
         if pricing_option_id:
             page_type = MembershipPricingOptionEditor
-            tab_id = page_type.tab_id.format(pricing_option_id)
+            tab_id = page_type.get_tab_id(pricing_option_id)
         else:
             page_type = MembershipPricingOptionCreator
-            tab_id = page_type.tab_id.format(membership_type_id)
+            tab_id = page_type.get_tab_id(membership_type_id)
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
             if pricing_option_id:
@@ -477,7 +473,5 @@ class Gui(QApplication):
                 self._widgets.tab_holder.close_tab(tab)
             tab.save_button.clicked.connect(save)
 
-            self._widgets.tab_holder.addTab(tab,
-                                            tab.tab_name.format(**tab.data),
-                                            tab_id)
+            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id)
         self._widgets.tab_holder.setCurrentWidget(tab)

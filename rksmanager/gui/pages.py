@@ -28,7 +28,52 @@ class RefreshMixin:
         self.data = self.refresher()
 
 
-class BaseEditor(QWidget):
+class BasePage(QWidget):
+    """
+    Base class for all tab page widgets. Subclasses should set the tab_id_fmt
+    and tab_name_fmt attributes appropriate format strings.
+
+    If the tab_id_fmt attribute contains a string formatting replacement field,
+    get_tab_id() will return a tab id string with the field replaced by the
+    specified data id:
+
+        tab_id_fmt = "edit_person_{:d}  # :d imposes an integer-only
+                                        # restriction
+
+    Any replacement fields in the tab_name_fmt attribute will be replaced by
+    the corresponding data from the widget's data set. The resulting tab name
+    string is accessible through the tab_name attribute.
+
+        tab_name_fmt = "Person Details ({id:d}: {first_name_or_nickname})"
+
+    """
+    @classmethod
+    def get_tab_id(cls, data_id=None):
+        """
+        Get the tab id that an instance of this class would use.
+
+        Args:
+            data_id: The id of the data set that the tab page will be working
+                with. Subclasses will either require this to be specified or
+                will ignore it.
+
+        Returns:
+            The tab id as a string.
+
+        """
+        return cls.tab_id_fmt.format(data_id)
+
+    @property
+    def tab_name(self):
+        """
+        The name of the tab page. Determined by the tab_name_fmt attribute and
+        the widget's current data set.
+
+        """
+        return self.tab_name_fmt.format(**self.data)
+
+
+class BaseEditor(BasePage):
     """
     Generic record editor widget. Subclasses should set the fields attribute to
     a sequence of 2-tuples or 3-tuples, each containing a field ID and label,
@@ -201,13 +246,21 @@ class BaseListModel(QAbstractTableModel):
                 return self.headers[section]
 
 
-class BaseList(RefreshMixin, QWidget):
+class BaseList(RefreshMixin, BasePage):
     """
     Generic table viewer widget. Subclasses should set the model_class
     attribute to a subclass of BaseListModel.
 
+    Args:
+        data: Optional initial data set, as a 2-dimensional list or similar.
+            Can be set later using the data attribute.
+        extra_data: Optional supplemental data set, as a dictionary. This data
+            won't be displayed in the QTableView, but can be used for other
+            purposes such as setting the tab name. Can be set later using the
+            extra_data attribute.
+
     """
-    def __init__(self):
+    def __init__(self, data=None, extra_data=None):
         super().__init__()
         self._model = self.model_class()
         self.proxy_model = QSortFilterProxyModel()
@@ -219,6 +272,8 @@ class BaseList(RefreshMixin, QWidget):
         self.table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
         layout.addWidget(self.table_view)
         self.setLayout(layout)
+        self.data = data or list()
+        self.extra_data = extra_data or dict()
 
     @property
     def data(self):
@@ -230,11 +285,20 @@ class BaseList(RefreshMixin, QWidget):
         self._model.populate(data)
         self.proxy_model.invalidate()
 
+    @property
+    def tab_name(self):
+        """
+        The name of the tab page. Determined by the tab_name_fmt attribute and
+        the widget's current supplemental data set.
+
+        """
+        return self.tab_name_fmt.format(**self.extra_data)
+
 
 class PersonDetails(BaseDetails):
     """Viewer widget for Create Person and Person Details tabs."""
-    tab_id = "person_details_{:d}"
-    tab_name = "Person Details ({id:d}: {first_name_or_nickname})"
+    tab_id_fmt = "person_details_{:d}"
+    tab_name_fmt = "Person Details ({id:d}: {first_name_or_nickname})"
 
     fields = (
         ("id", "Person ID"),
@@ -249,8 +313,8 @@ class PersonDetails(BaseDetails):
 
 class PersonEditor(BaseEditor):
     """Editor widget for the Person Details tab."""
-    tab_id = "edit_person_{:d}"
-    tab_name = "Edit Person ({id:d}: {first_name_or_nickname})"
+    tab_id_fmt = "edit_person_{:d}"
+    tab_name_fmt = "Edit Person ({id:d}: {first_name_or_nickname})"
 
     fields = (
         ("id", "Person ID", Label),
@@ -265,8 +329,8 @@ class PersonEditor(BaseEditor):
 
 class PersonCreator(PersonEditor):
     """Editor widget for the Create Person tab."""
-    tab_id = "create_person"
-    tab_name = "Create Person"
+    tab_id_fmt = "create_person"
+    tab_name_fmt = "Create Person"
 
 
 class PersonListModel(BaseListModel):
@@ -276,8 +340,8 @@ class PersonListModel(BaseListModel):
 
 class PersonList(BaseList):
     """Table viewer widget for the People tab."""
-    tab_id = "view_people"
-    tab_name = "People"
+    tab_id_fmt = "view_people"
+    tab_name_fmt = "People"
 
     model_class = PersonListModel
 
@@ -292,13 +356,13 @@ class ContactInfoTypeListModel(BaseListModel):
 
 class ContactInfoTypeList(BaseList):
     """Table viewer widget for the Manage Contact Info Types tab."""
-    tab_id = "manage_contact_info_types"
-    tab_name = "Manage Contact Info Types"
+    tab_id_fmt = "manage_contact_info_types"
+    tab_name_fmt = "Manage Contact Info Types"
 
     model_class = ContactInfoTypeListModel
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.add_button = QPushButton("Add New Contact Info Type")
         self.layout().insertWidget(0, self.add_button)
 
@@ -313,13 +377,13 @@ class MembershipTypeListModel(BaseListModel):
 
 class MembershipTypeList(BaseList):
     """Table viewer widget for the Manage Membership Types tab."""
-    tab_id = "manage_membership_types"
-    tab_name = "Manage Membership Types"
+    tab_id_fmt = "manage_membership_types"
+    tab_name_fmt = "Manage Membership Types"
 
     model_class = MembershipTypeListModel
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.add_button = QPushButton("Add New Membership Type")
         self.layout().insertWidget(0, self.add_button)
 
@@ -335,21 +399,21 @@ class MembershipPricingOptionListModel(BaseListModel):
 
 class MembershipPricingOptionList(BaseList):
     """Table viewer widget for the Membership Type Pricing Options tab."""
-    tab_id = "membership_type_pricing_options_{:d}"
-    tab_name = "{membership_type_name} Membership Pricing Options"
+    tab_id_fmt = "membership_type_pricing_options_{:d}"
+    tab_name_fmt = "{name} Membership Pricing Options"
 
     model_class = MembershipPricingOptionListModel
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.add_button = QPushButton("Add New Pricing Option")
         self.layout().insertWidget(0, self.add_button)
 
 
 class MembershipPricingOptionEditor(BaseEditor):
     """Editor widget for the Edit Pricing Option tab."""
-    tab_id = "edit_pricing_option_{:d}"
-    tab_name = "Edit {membership_type_name} Membership Pricing Option"
+    tab_id_fmt = "edit_pricing_option_{:d}"
+    tab_name_fmt = "Edit {membership_type_name} Membership Pricing Option"
 
     fields = (
         ("id", "Pricing Option ID", Label),
@@ -362,5 +426,5 @@ class MembershipPricingOptionEditor(BaseEditor):
 
 class MembershipPricingOptionCreator(MembershipPricingOptionEditor):
     """Editor widget for the Create Pricing Option tab."""
-    tab_id = "create_pricing_option_{:d}"
-    tab_name = "Create {membership_type_name} Membership Pricing Option"
+    tab_id_fmt = "create_pricing_option_{:d}"
+    tab_name_fmt = "Create {membership_type_name} Membership Pricing Option"
