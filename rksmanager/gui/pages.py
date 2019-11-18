@@ -65,9 +65,9 @@ class BaseEditor(QWidget):
             widget = widget_type()
             layout.addRow(label, widget)
             self._data_widgets[field_id] = widget
+        self.setLayout(layout)
         self.place_buttons()
         self.values = self._data
-        self.setLayout(layout)
 
     def place_buttons(self):
         """
