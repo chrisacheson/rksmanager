@@ -597,6 +597,39 @@ class PrimaryItemListEdit(ListEdit):
         return text
 
 
+class MappedLabel(QLabel):
+    """
+    A QLabel that displays text based on a dictionary mapping. Setting the
+    label's value will cause it to look for a matching key in the dictionary
+    and use the corresponding value as its text.
+
+    """
+    def __init__(self, mapping=None):
+        """
+        Args:
+            mapping: Optional dictionary of value->text mappings. Can be set
+                later via the mapping attribute.
+
+        """
+        super().__init__()
+        self.mapping = mapping or dict()
+        self._value = None
+
+    @property
+    def value(self):
+        """
+        Get or set the label's current value. Changing the value will change
+        the label's text based on the items mapping dictionary.
+
+        """
+        return self._value
+
+    @value.setter
+    def value(self, value):
+        self._value = value
+        self.setText(self.mapping.get(value, ""))
+
+
 class ComboListEdit(QWidget):
     """
     A ListEdit for pairs of values. When inputting a new pair, the first value
@@ -661,10 +694,10 @@ class ComboListEdit(QWidget):
         remove_button = QPushButton("-")
         remove_button.clicked.connect(functools.partial(remove, remove_button))
 
-        combo_index = self._combo_box.findData(combo_data)
-        combo_text = self._combo_box.itemText(combo_index)
+        mapped_label = MappedLabel(self._mapping)
+        mapped_label.value = combo_data
         self.layout.insert_row(self.num_items, (
-            (QLabel(combo_text), 0, 1),  # Column 0, span 1
+            (mapped_label, 0, 1),  # Column 0, span 1
             (QLabel(text), 1, 1),  # Column 1, span 1
             (remove_button, 2, 1),  # Column 2, span 1
         ))
@@ -681,9 +714,7 @@ class ComboListEdit(QWidget):
             The item at the specified index as an (integer, string) tuple.
 
         """
-        combo_text = self.layout.itemAtPosition(index, 0).widget().text()
-        combo_index = self._combo_box.findText(combo_text)
-        combo_data = self._combo_box.itemData(combo_index)
+        combo_data = self.layout.itemAtPosition(index, 0).widget().value
         text = self.layout.itemAtPosition(index, 1).widget().text()
         return (combo_data, text)
 
@@ -732,12 +763,7 @@ class ComboListEdit(QWidget):
         items = []
         for i in range(self.num_items):
             items.append(self.get_item(i))
-        combo_items = []
-        # Skip blank first item
-        for i in range(1, self._combo_box.count()):
-            combo_data = self._combo_box.itemData(i)
-            combo_text = self._combo_box.itemText(i)
-            combo_items.append((combo_data, combo_text))
+        combo_items = list(self._mapping.items())
         return (items, combo_items)
 
     @value.setter
@@ -750,5 +776,6 @@ class ComboListEdit(QWidget):
         for combo_item in combo_items:
             combo_data, combo_text = combo_item
             self._combo_box.addItem(combo_text, combo_data)
+        self._mapping = dict(combo_items)
         for item in items:
             self.append(item)
