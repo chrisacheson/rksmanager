@@ -78,21 +78,23 @@ class TabHolder(QTabWidget):
         """
         return self._tab_ids.get(tab_id)
 
-    def close_tab(self, index_or_widget):
+    def close_tab(self, tab):
         """
-        Close the tab at the specified index or with the specified page widget,
-        and delete the widget. Called when the tab's close button is clicked.
+        Close the specified tab and delete the widget. Called when the tab's
+        close button is clicked.
 
         Args:
-            index_or_widget: The index of the tab to close, or the page widget
-                corresponding to the tab.
+            tab: The index, tab ID, or page widget of the tab to close.
 
         """
-        if isinstance(index_or_widget, int):
-            index = index_or_widget
+        if isinstance(tab, int):
+            index = tab
             widget = self.widget(index)
+        elif isinstance(tab, QWidget):
+            widget = tab
+            index = self.indexOf(widget)
         else:
-            widget = index_or_widget
+            widget = self.get_tab(tab)
             index = self.indexOf(widget)
         tab_id = self._tab_ids_inverse[widget]
         self._del_tab_id(tab_id)

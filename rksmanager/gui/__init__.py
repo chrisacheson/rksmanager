@@ -164,7 +164,34 @@ class Gui(QApplication):
             self._db = None
             self.database_is_open.emit(False)
 
-    def view_person_details(self, person_id, before=None):
+    def create_or_focus_tab(self, page_type, loader, extra_loader=None,
+                            button_callbacks=None, tab_id_arg=None,
+                            replace_tab=None):
+        tab_id = page_type.get_tab_id(tab_id_arg)
+        tab = self._widgets.tab_holder.get_tab(tab_id)
+        if not tab:
+            if isinstance(loader, tuple):
+                loader = functools.partial(*loader)
+            tab = page_type(data=loader())
+            tab.refresher = loader
+            self.database_modified.connect(tab.refresh)
+            if extra_loader:
+                if isinstance(extra_loader, tuple):
+                    extra_loader = functools.partial(*extra_loader)
+                tab.extra_data = extra_loader()
+                # TODO: Refresher for extra_data?
+            for button_attr, callback in button_callbacks.items():
+                if isinstance(callback, tuple):
+                    callback = functools.partial(*callback)
+                button = getattr(tab, button_attr)
+                button.clicked.connect(callback)
+            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id,
+                                            replace_tab)
+            if replace_tab:
+                self._widgets.tab_holder.close_tab(replace_tab)
+        self._widgets.tab_holder.setCurrentWidget(tab)
+
+    def view_person_details(self, person_id, replace_tab=None):
         """
         Open or focus the Person Details tab for the specified person. Called
         after the user clicks save in the Create Person tab or when they double
@@ -172,42 +199,36 @@ class Gui(QApplication):
 
         Args:
             person_id: The ID of the person to show the details of.
-            before: Optional ID or page widget of the tab to insert this tab in
-                front of.
+            replace_tab: Optional ID or page widget of a tab to replace with
+                this tab.
 
         """
-        tab_id = PersonDetails.get_tab_id(person_id)
-        tab = self._widgets.tab_holder.get_tab(tab_id)
-        if not tab:
-            def refresher(person_id):
-                # TODO: Refactor this
-                person_data = self._db.get_person(person_id)
-                contact_info_types = {}
-                for cit in self._db.get_other_contact_info_types():
-                    contact_info_types[cit["id"]] = cit["name"]
-                other_contact_info = []
-                for type_id, contact_info in person_data["other_contact_info"]:
-                    type_name = contact_info_types[type_id]
-                    other_contact_info.append("{}: {}".format(type_name,
-                                                              contact_info))
-                person_data["other_contact_info"] = other_contact_info
-                return person_data
-            bound_refresher = functools.partial(refresher, person_id)
-            tab = PersonDetails(data=bound_refresher())
-            tab.refresher = bound_refresher
-            self.database_modified.connect(tab.refresh)
+        def loader(person_id):
+            # TODO: Refactor this
+            person_data = self._db.get_person(person_id)
+            contact_info_types = {}
+            for cit in self._db.get_other_contact_info_types():
+                contact_info_types[cit["id"]] = cit["name"]
+            other_contact_info = []
+            for type_id, contact_info in person_data["other_contact_info"]:
+                type_name = contact_info_types[type_id]
+                other_contact_info.append("{}: {}".format(type_name,
+                                                          contact_info))
+            person_data["other_contact_info"] = other_contact_info
+            return person_data
 
-            # Edit button callback. Opens the person in a new Edit Person tab
-            # and closes the Person Details tab.
-            def edit():
-                self.edit_person(person_id)
-                self._widgets.tab_holder.close_tab(tab)
-            tab.edit_button.clicked.connect(edit)
+        self.create_or_focus_tab(
+            page_type=PersonDetails,
+            tab_id_arg=person_id,
+            replace_tab=replace_tab,
+            loader=(loader, person_id),
+            button_callbacks={
+                "edit_button": (self.edit_person, person_id,
+                                PersonDetails.get_tab_id(person_id))
+            },
+        )
 
-            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id, before)
-        self._widgets.tab_holder.setCurrentWidget(tab)
-
-    def edit_person(self, person_id=None, before=None):
+    def edit_person(self, person_id=None, replace_tab=None):
         """
         Open or focus a PersonEditor tab for the specified person or for a new
         person. Called when the "Create new person record" menu item is
@@ -217,8 +238,8 @@ class Gui(QApplication):
             person_id: Optional ID of the person to edit. If unspecified the
                 editor will create a new person when the save button is
                 clicked.
-            before: Optional ID or page widget of the tab to insert this tab in
-                front of.
+            replace_tab: Optional ID or page widget of a tab to replace with
+                this tab.
 
         """
         if person_id:
@@ -246,7 +267,8 @@ class Gui(QApplication):
                 if person_id:
                     # Go "back" to the details of the person we're editing
                     self.view_person_details(person_id, tab)
-                self._widgets.tab_holder.close_tab(tab)
+                else:
+                    self._widgets.tab_holder.close_tab(tab)
             tab.cancel_button.clicked.connect(cancel)
 
             # Save button callback. Saves the person to the database, closes
@@ -255,7 +277,10 @@ class Gui(QApplication):
                 self.save_person(tab, person_id)
             tab.save_button.clicked.connect(save)
 
-            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id, before)
+            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id,
+                                            replace_tab)
+            if replace_tab:
+                self._widgets.tab_holder.close_tab(replace_tab)
         self._widgets.tab_holder.setCurrentWidget(tab)
 
     def save_person(self, editor, person_id=None):
@@ -277,7 +302,6 @@ class Gui(QApplication):
         person_id = self._db.save_person(values, person_id)
         self.database_modified.emit()
         self.view_person_details(person_id, editor)
-        self._widgets.tab_holder.close_tab(editor)
 
     def view_people(self):
         """
