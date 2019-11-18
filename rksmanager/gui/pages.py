@@ -15,19 +15,6 @@ from .widgets import (Label, LineEdit, TextEdit, ListLabel, ListEdit,
                       PrimaryItemListLabel, PrimaryItemListEdit, ComboListEdit)
 
 
-class RefreshMixin:
-    """
-    Adds a refresh() method to any widget inheriting this, which can be
-    connected to the Gui.database_modified() signal. The widget's refresher
-    attribute should be set to a function that takes no arguments and returns a
-    fresh data set from the database.
-
-    """
-    def refresh(self):
-        """Populate the widget with fresh data from the database."""
-        self.data = self.refresher()
-
-
 class BasePage(QWidget):
     """
     Base class for all tab page widgets. Subclasses should set the tab_id_fmt
@@ -71,6 +58,18 @@ class BasePage(QWidget):
 
         """
         return self.tab_name_fmt.format(**self.data)
+
+    def refresh(self):
+        """
+        Populate the widget with fresh data from the database. This can be
+        connected to the Gui.database_modified() signal in order to
+        auto-refresh the widget's data whenever a change is made to the
+        database. The widget's refresher attribute should also be set to a
+        function that takes no arguments and returns an appropriate data set
+        from the database.
+
+        """
+        self.data = self.refresher()
 
 
 class BaseEditor(BasePage):
@@ -170,7 +169,7 @@ class BaseEditor(BasePage):
             self._data_widgets[key].value = values[key]
 
 
-class BaseDetails(RefreshMixin, BaseEditor):
+class BaseDetails(BaseEditor):
     """
     Generic record viewer widget. Subclasses should set the fields attribute to
     a sequence of 2-tuples or 3-tuples, each containing a field ID and label,
@@ -246,7 +245,7 @@ class BaseListModel(QAbstractTableModel):
                 return self.headers[section]
 
 
-class BaseList(RefreshMixin, BasePage):
+class BaseList(BasePage):
     """
     Generic table viewer widget. Subclasses should set the model_class
     attribute to a subclass of BaseListModel.
