@@ -179,8 +179,11 @@ class Gui(QApplication):
             extra_loader: Optional loader for a supplemental data set,
                 specified in the same way as the loader argument.
             button_callbacks: Optional dictionary of button attribute names and
-                functions to be called when the button is clicked. Each
-                function is specified in the same way as the loader argument.
+                functions (or Callback objects containing functions) to be
+                called when the corresponding button is clicked. If a
+                Callback's self_ref_kw attribute is set, the function will be
+                passed a reference to the page widget via the specified keyword
+                argument.
             tab_id_arg: Argument to pass to page_type.get_tab_id()
                 when generating the tab's ID string. Depending on the page
                 type, this will be either required or ignored.
@@ -202,8 +205,8 @@ class Gui(QApplication):
                 tab.extra_data = extra_loader()
                 # TODO: Refresher for extra_data?
             for button_attr, callback in button_callbacks.items():
-                if isinstance(callback, tuple):
-                    callback = functools.partial(*callback)
+                if isinstance(callback, Callback):
+                    callback = callback.bind(self_ref=tab)
                 button = getattr(tab, button_attr)
                 button.clicked.connect(callback)
             self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id,
@@ -252,8 +255,8 @@ class Gui(QApplication):
             replace_tab=replace_tab,
             loader=(self.load_person, person_id),
             button_callbacks={
-                "edit_button": (self.edit_person, person_id,
-                                PersonDetails.get_tab_id(person_id))
+                "edit_button": Callback(self.edit_person, (person_id,),
+                                        self_ref_kw="replace_tab"),
             },
         )
 
@@ -528,3 +531,40 @@ class Gui(QApplication):
 
             self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id)
         self._widgets.tab_holder.setCurrentWidget(tab)
+
+
+class Callback:
+    """
+    Class for handling callback functions and their arguments.
+
+    Args:
+        function: The function to be called.
+        args: An optional sequence of positional arguments to pass to the
+            function.
+        kwargs: An optional dictionary of keyword arguments to pass to the
+            function.
+        self_ref_kw: Optional keyword of a self reference that will be passed
+            to the function.
+
+    """
+    def __init__(self, function, args=None, kwargs=None, self_ref_kw=None):
+        self.function = function
+        self.args = args or tuple()
+        self.kwargs = kwargs or dict()
+        self.self_ref_kw = self_ref_kw
+
+    def bind(self, self_ref=None):
+        """
+        Create a copy of the function with the arguments bound to it.
+
+        Args:
+            self_ref: A reference to the object that will be calling the
+                function. Ignored if the self_ref_kw attribute is not set.
+
+        Returns:
+            The bound function.
+
+        """
+        if self.self_ref_kw and self_ref:
+            self.kwargs[self.self_ref_kw] = self_ref
+        return functools.partial(self.function, *self.args, **self.kwargs)
