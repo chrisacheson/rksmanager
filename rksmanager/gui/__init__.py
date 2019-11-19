@@ -167,6 +167,27 @@ class Gui(QApplication):
     def create_or_focus_tab(self, page_type, loader, extra_loader=None,
                             button_callbacks=None, tab_id_arg=None,
                             replace_tab=None):
+        """
+        Create a new "task" tab, or focus it if it already exists.
+
+        Args:
+            page_type: The page widget class to use for the new tab.
+            loader: A function that will load the appropriate data set from the
+                database for the tab to use. This argument will also accept a
+                tuple consisting of a function followed by the positional
+                arguments to pass to that function.
+            extra_loader: Optional loader for a supplemental data set,
+                specified in the same way as the loader argument.
+            button_callbacks: Optional dictionary of button attribute names and
+                functions to be called when the button is clicked. Each
+                function is specified in the same way as the loader argument.
+            tab_id_arg: Argument to pass to page_type.get_tab_id()
+                when generating the tab's ID string. Depending on the page
+                type, this will be either required or ignored.
+            replace_tab: Optional tab ID, page widget, or index of a tab to
+                replace with this one.
+
+        """
         tab_id = page_type.get_tab_id(tab_id_arg)
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
@@ -191,6 +212,28 @@ class Gui(QApplication):
                 self._widgets.tab_holder.close_tab(replace_tab)
         self._widgets.tab_holder.setCurrentWidget(tab)
 
+    def load_person(self, person_id):
+        """
+        Get person data from the database and massage it a bit so that it's
+        ready to be fed to a page widget.
+
+        Args:
+            person_id: The ID of the person to retrieve.
+
+        Returns:
+            The person's data as a dictionary.
+
+        """
+        person_data = self._db.get_person(person_id)
+        contact_info_types = list()
+        for id, name, *_ in self._db.get_other_contact_info_types():
+            contact_info_types.append((id, name))
+        person_data["other_contact_info"] = (
+            person_data["other_contact_info"],
+            contact_info_types,
+        )
+        return person_data
+
     def view_person_details(self, person_id, replace_tab=None):
         """
         Open or focus the Person Details tab for the specified person. Called
@@ -203,25 +246,11 @@ class Gui(QApplication):
                 this tab.
 
         """
-        def loader(person_id):
-            # TODO: Refactor this
-            person_data = self._db.get_person(person_id)
-            contact_info_types = {}
-            for cit in self._db.get_other_contact_info_types():
-                contact_info_types[cit["id"]] = cit["name"]
-            other_contact_info = []
-            for type_id, contact_info in person_data["other_contact_info"]:
-                type_name = contact_info_types[type_id]
-                other_contact_info.append("{}: {}".format(type_name,
-                                                          contact_info))
-            person_data["other_contact_info"] = other_contact_info
-            return person_data
-
         self.create_or_focus_tab(
             page_type=PersonDetails,
             tab_id_arg=person_id,
             replace_tab=replace_tab,
-            loader=(loader, person_id),
+            loader=(self.load_person, person_id),
             button_callbacks={
                 "edit_button": (self.edit_person, person_id,
                                 PersonDetails.get_tab_id(person_id))

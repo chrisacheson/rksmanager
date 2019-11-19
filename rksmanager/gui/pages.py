@@ -12,7 +12,8 @@ from PySide2.QtWidgets import (QWidget, QFormLayout, QHBoxLayout, QPushButton,
 from PySide2.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel
 
 from .widgets import (Label, LineEdit, TextEdit, ListLabel, ListEdit,
-                      PrimaryItemListLabel, PrimaryItemListEdit, ComboListEdit)
+                      PrimaryItemListLabel, PrimaryItemListEdit, ComboListEdit,
+                      MappedDoubleListLabel)
 
 
 class BasePage(QWidget):
@@ -304,7 +305,7 @@ class PersonDetails(BaseDetails):
         ("first_name_or_nickname", "First name\nor nickname"),
         ("aliases", "Aliases", ListLabel),
         ("email_addresses", "Email Addresses", PrimaryItemListLabel),
-        ("other_contact_info", "Other Contact Info", ListLabel),
+        ("other_contact_info", "Other Contact Info", MappedDoubleListLabel),
         ("pronouns", "Pronouns"),
         ("notes", "Notes"),
     )

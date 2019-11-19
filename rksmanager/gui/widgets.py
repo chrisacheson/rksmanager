@@ -603,17 +603,17 @@ class MappedLabel(QLabel):
     label's value will cause it to look for a matching key in the dictionary
     and use the corresponding value as its text.
 
-    """
-    def __init__(self, mapping=None):
-        """
-        Args:
-            mapping: Optional dictionary of value->text mappings. Can be set
-                later via the mapping attribute.
+    Args:
+        mapping: Optional dictionary of value->text mappings. Can be set
+            later via the mapping attribute.
 
-        """
+    """
+    empty_value = None
+
+    def __init__(self, mapping=None):
         super().__init__()
         self.mapping = mapping or dict()
-        self._value = None
+        self._value = self.empty_value
 
     @property
     def value(self):
@@ -628,6 +628,26 @@ class MappedLabel(QLabel):
     def value(self, value):
         self._value = value
         self.setText(self.mapping.get(value, ""))
+
+
+class MappedDoubleListLabel(MappedLabel):
+    """
+    A MappedLabel that behaves like a read-only ComboListEdit.
+
+    """
+    empty_value = ([], [])
+
+    @MappedLabel.value.setter
+    def value(self, value):
+        self._value = value
+        items, mapping_items = value
+        self.mapping = dict(mapping_items)
+        text_rows = list()
+        for to_map, verbatim in items:
+            mapped = self.mapping.get(to_map, "")
+            text = "{}: {}".format(mapped, verbatim)
+            text_rows.append(text)
+        self.setText("\n".join(text_rows))
 
 
 class ComboListEdit(QWidget):
