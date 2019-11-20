@@ -377,38 +377,33 @@ class Gui(QApplication):
         Membership Types" menu item is selected.
 
         """
-        tab_id = MembershipTypeList.get_tab_id()
-        tab = self._widgets.tab_holder.get_tab(tab_id)
-        if not tab:
-            tab = MembershipTypeList()
+        # Add New Membership Type button callback. Prompts the user for a
+        # name, then creates a new membership type with that name.
+        def add():
+            window = self._widgets.main_window
+            name = dialogboxes.add_new_membership_type_dialog(window)
+            if name is not None:
+                self._db.create_membership_type(name)
+                self.database_modified.emit()
 
-            # Add New Membership Type button callback. Prompts the user for a
-            # name, then creates a new membership type with that name.
-            def add():
-                window = self._widgets.main_window
-                name = dialogboxes.add_new_membership_type_dialog(window)
-                if name is not None:
-                    self._db.create_membership_type(name)
-                    self.database_modified.emit()
-            tab.add_button.clicked.connect(add)
+        # Table double-click callback. Opens or focuses the Membership Type
+        # Pricing Options tab for the membership type that was clicked on.
+        #
+        # Args:
+        #   index: A QModelIndex representing the item that was clicked on.
+        def pricing_options(index):
+            id_index = index.siblingAtColumn(0)
+            membership_type_id = index.model().itemData(id_index)[0]
+            self.membership_type_pricing_options(membership_type_id)
 
-            # Table double-click callback. Opens or focuses the Membership Type
-            # Pricing Options tab for the membership type that was clicked on.
-            #
-            # Args:
-            #   index: A QModelIndex representing the item that was clicked on.
-            def pricing_options(index):
-                id_index = index.siblingAtColumn(0)
-                membership_type_id = tab.proxy_model.itemData(id_index)[0]
-                self.membership_type_pricing_options(membership_type_id)
-            tab.table_view.doubleClicked.connect(pricing_options)
-
-            tab.refresher = self._db.get_membership_types
-            tab.refresh()
-            self.database_modified.connect(tab.refresh)
-
-            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id)
-        self._widgets.tab_holder.setCurrentWidget(tab)
+        self.create_or_focus_tab(
+            page_type=MembershipTypeList,
+            loader=self._db.get_membership_types,
+            signal_connections={
+                "add_button": add,
+                "table_view.doubleClicked": pricing_options,
+            },
+        )
 
     def membership_type_pricing_options(self, membership_type_id):
         """
