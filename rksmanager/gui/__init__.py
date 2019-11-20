@@ -344,36 +344,32 @@ class Gui(QApplication):
         "Manage Contact Info Types" menu item is selected.
 
         """
-        tab_id = ContactInfoTypeList.get_tab_id()
-        tab = self._widgets.tab_holder.get_tab(tab_id)
-        if not tab:
-            tab = ContactInfoTypeList()
+        # Add New Contact Info Type button callback. Prompts the user for a
+        # name, then creates a new contact info type with that name.
+        # TODO: Prevent the user from adding "Email" or "Phone" once we get
+        # around to doing validators
+        def add():
+            window = self._widgets.main_window
+            name = dialogboxes.add_new_contact_info_type_dialog(window)
+            if name is not None:
+                self._db.create_other_contact_info_type(name)
+                self.database_modified.emit()
 
-            # Add New Contact Info Type button callback. Prompts the user for a
-            # name, then creates a new contact info type with that name.
-            # TODO: Prevent the user from adding "Email" or "Phone" once we get
-            # around to doing validators
-            def add():
-                window = self._widgets.main_window
-                name = dialogboxes.add_new_contact_info_type_dialog(window)
-                if name is not None:
-                    self._db.create_other_contact_info_type(name)
-                    self.database_modified.emit()
-            tab.add_button.clicked.connect(add)
+        # Fetch contact info type data from the database, and tack on rows for
+        # email and phone so that we have all contact info types covered.
+        def loader():
+            ci_types = self._db.get_other_contact_info_types_usage()
+            email_address_count = self._db.count_email_addresses()
+            phone_number_count = self._db.count_phone_numbers()
+            ci_types.insert(0, ("", "Email", email_address_count))
+            ci_types.insert(1, ("", "Phone", phone_number_count))
+            return ci_types
 
-            def refresher():
-                ci_types = self._db.get_other_contact_info_types_usage()
-                email_address_count = self._db.count_email_addresses()
-                phone_number_count = self._db.count_phone_numbers()
-                ci_types.insert(0, ("", "Email", email_address_count))
-                ci_types.insert(1, ("", "Phone", phone_number_count))
-                return ci_types
-            tab.refresher = refresher
-            tab.refresh()
-            self.database_modified.connect(tab.refresh)
-
-            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id)
-        self._widgets.tab_holder.setCurrentWidget(tab)
+        self.create_or_focus_tab(
+            page_type=ContactInfoTypeList,
+            loader=loader,
+            signal_connections={"add_button": add},
+        )
 
     def manage_membership_types(self):
         """
