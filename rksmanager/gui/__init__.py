@@ -166,7 +166,7 @@ class Gui(QApplication):
 
     def create_or_focus_tab(self, page_type, loader=None, data=None,
                             extra_loader=None, extra_data=None,
-                            button_callbacks=None, tab_id_arg=None,
+                            signal_connections=None, tab_id_arg=None,
                             replace_tab=None):
         """
         Create a new "task" tab, or focus it if it already exists.
@@ -183,11 +183,14 @@ class Gui(QApplication):
                 specified in the same way as the loader argument.
             extra_data: Optional supplemental data set. Ignored if the
                 extra_loader argument is specified.
-            button_callbacks: Optional dictionary of button attribute names and
+            signal_connections: Optional dictionary of signal names and
                 functions (or Callback objects containing functions) to be
-                called when the corresponding button is clicked. If a
-                Callback's self_ref_kw attribute is set, the function will be
-                passed a reference to the page widget via the specified keyword
+                called when the corresponding signal is emitted. Signals are
+                specified as "object.signal", where object is an attribute of
+                the page widget, such as a button. If the signal name is
+                omitted, it will default to "clicked". If a Callback's
+                self_ref_kw attribute is set, the function will be passed a
+                reference to the page widget via the specified keyword
                 argument.
             tab_id_arg: Argument to pass to page_type.get_tab_id()
                 when generating the tab's ID string. Depending on the page
@@ -212,11 +215,16 @@ class Gui(QApplication):
                 tab.refresher = loader
                 self.database_modified.connect(tab.refresh)
                 # TODO: Refresher for extra_data?
-            for button_attr, callback in button_callbacks.items():
+            for signal_string, callback in signal_connections.items():
                 if isinstance(callback, Callback):
                     callback = callback.bind(self_ref=tab)
-                button = getattr(tab, button_attr)
-                button.clicked.connect(callback)
+                if "." in signal_string:
+                    emitter_name, signal_name = signal_string.split(".")
+                    emitter = getattr(tab, emitter_name)
+                    signal = getattr(emitter, signal_name)
+                else:
+                    signal = getattr(tab, signal_string).clicked
+                signal.connect(callback)
             self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id,
                                             replace_tab)
             if replace_tab:
@@ -243,7 +251,7 @@ class Gui(QApplication):
             extra_data={
                 "other_contact_info": self._db.get_other_contact_info_types()
             },
-            button_callbacks={
+            signal_connections={
                 "edit_button": Callback(self.edit_person, (person_id,),
                                         self_ref_kw="replace_tab")
             },
@@ -284,7 +292,7 @@ class Gui(QApplication):
             extra_data={
                 "other_contact_info": self._db.get_other_contact_info_types()
             },
-            button_callbacks={
+            signal_connections={
                 "cancel_button": cancel,
                 "save_button": Callback(self.save_person,
                                         kwargs={"person_id": person_id},
@@ -314,27 +322,21 @@ class Gui(QApplication):
         is selected.
 
         """
-        tab_id = PersonList.get_tab_id()
-        tab = self._widgets.tab_holder.get_tab(tab_id)
-        if not tab:
-            tab = PersonList()
+        # Table double-click callback. Opens the person that was clicked on
+        # in a new Person Details tab.
+        #
+        # Args:
+        #   index: A QModelIndex representing the item that was clicked on.
+        def details(index):
+            id_index = index.siblingAtColumn(0)
+            person_id = index.model().itemData(id_index)[0]
+            self.view_person_details(person_id)
 
-            # Table double-click callback. Opens the person that was clicked on
-            # in a new Person Details tab.
-            #
-            # Args:
-            #   index: A QModelIndex representing the item that was clicked on.
-            def details(index):
-                id_index = index.siblingAtColumn(0)
-                person_id = tab.proxy_model.itemData(id_index)[0]
-                self.view_person_details(person_id)
-            tab.table_view.doubleClicked.connect(details)
-
-            tab.refresher = self._db.get_people
-            tab.refresh()
-            self.database_modified.connect(tab.refresh)
-            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id)
-        self._widgets.tab_holder.setCurrentWidget(tab)
+        self.create_or_focus_tab(
+            page_type=PersonList,
+            loader=self._db.get_people,
+            signal_connections={"table_view.doubleClicked": details},
+        )
 
     def manage_contact_info_types(self):
         """
