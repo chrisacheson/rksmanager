@@ -558,6 +558,23 @@ class Database:
         with self._connection:
             return self._connection.execute(
                 """
+                select id
+                    , name
+                from other_contact_info_types
+                """
+            ).fetchall()
+
+    def get_other_contact_info_types_usage(self):
+        """
+        Get all "other" contact info types and the usage count for each type.
+
+        Returns:
+            A list of sqlite3.Row objects.
+
+        """
+        with self._connection:
+            return self._connection.execute(
+                """
                 select t.id as id
                     , name
                     , count(i.id) as usage_count

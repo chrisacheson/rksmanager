@@ -90,13 +90,16 @@ class BaseEditor(BasePage):
         )
 
     Args:
-        data: Optional initial data set. Can be set later using the data
+        data: Optional initial data set as a dictionary of field id and widget
+            value pairs. Can be set later using the data attribute.
+        extra_data: Optional supplemental data set, as a dictionary of field id
+            and extra value pairs. Can be set later using the extra_data
             attribute.
 
     """
     default_widget = LineEdit
 
-    def __init__(self, data=None):
+    def __init__(self, data=None, extra_data=None):
         self._data = data or dict()
         self._data_widgets = {}
         super().__init__()
@@ -113,6 +116,7 @@ class BaseEditor(BasePage):
         self.setLayout(layout)
         self.place_buttons()
         self.values = self._data
+        self.extra_data = extra_data or dict()
 
     def place_buttons(self):
         """
@@ -155,7 +159,8 @@ class BaseEditor(BasePage):
         The current values of all of the page's data widgets as a dictionary of
         field id and widget value pairs.
 
-        Setting this will update the values of all of the data widgets.
+        Setting this will update the values of all of the data widgets
+        specified in the dictionary.
 
         """
         values = dict()
@@ -168,6 +173,27 @@ class BaseEditor(BasePage):
         keys = self._data_widgets.keys() & values.keys()
         for key in keys:
             self._data_widgets[key].value = values[key]
+
+    @property
+    def extra_data(self):
+        """
+        The current supplemental data of all of the page's data widgets as a
+        dictionary of field id and widget extra value pairs.
+
+        Setting this will update the extra_data attributes of all of the data
+        widgets specified in the dictionary.
+
+        """
+        extra_data = dict()
+        for field_id, widget in self._data_widgets.items():
+            extra_data[field_id] = getattr(widget, "extra_data", None)
+        return extra_data
+
+    @extra_data.setter
+    def extra_data(self, extra_data):
+        keys = self._data_widgets.keys() & extra_data.keys()
+        for key in keys:
+            self._data_widgets[key].extra_data = extra_data[key]
 
 
 class BaseDetails(BaseEditor):

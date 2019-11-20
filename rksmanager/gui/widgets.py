@@ -615,6 +615,17 @@ class MappedLabel(QLabel):
         self.mapping = mapping or dict()
         self._value = self.empty_value
 
+    def setText(self, value):
+        """
+        Overrides QLabel.setText(). Don't use this, set the value property
+        instead.
+
+        Args:
+            value: The value to be mapped.
+
+        """
+        super().setText(self.mapping.get(value, ""))
+
     @property
     def value(self):
         """
@@ -627,7 +638,7 @@ class MappedLabel(QLabel):
     @value.setter
     def value(self, value):
         self._value = value
-        self.setText(self.mapping.get(value, ""))
+        self.setText(value)
 
 
 class MappedDoubleListLabel(MappedLabel):
@@ -635,19 +646,37 @@ class MappedDoubleListLabel(MappedLabel):
     A MappedLabel that behaves like a read-only ComboListEdit.
 
     """
-    empty_value = ([], [])
+    empty_value = list()
 
-    @MappedLabel.value.setter
-    def value(self, value):
-        self._value = value
-        items, mapping_items = value
-        self.mapping = dict(mapping_items)
+    def setText(self, items):
+        """
+        Overrides MappedLabel.setText(). Don't use this, set the value property
+        instead.
+
+        Args:
+            items: List of items to display.
+
+        """
         text_rows = list()
         for to_map, verbatim in items:
             mapped = self.mapping.get(to_map, "")
             text = "{}: {}".format(mapped, verbatim)
             text_rows.append(text)
-        self.setText("\n".join(text_rows))
+        super(MappedLabel, self).setText("\n".join(text_rows))
+
+    @property
+    def extra_data(self):
+        """
+        The mapping dictionary as a list of item tuples. Setting this will
+        update the label's text based on the new mapping.
+
+        """
+        return self.mapping.items()
+
+    @extra_data.setter
+    def extra_data(self, extra_data):
+        self.mapping = dict(extra_data)
+        self.setText(self._value)
 
 
 class ComboListEdit(QWidget):

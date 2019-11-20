@@ -164,7 +164,8 @@ class Gui(QApplication):
             self._db = None
             self.database_is_open.emit(False)
 
-    def create_or_focus_tab(self, page_type, loader, extra_loader=None,
+    def create_or_focus_tab(self, page_type, loader=None, data=None,
+                            extra_loader=None, extra_data=None,
                             button_callbacks=None, tab_id_arg=None,
                             replace_tab=None):
         """
@@ -172,12 +173,16 @@ class Gui(QApplication):
 
         Args:
             page_type: The page widget class to use for the new tab.
-            loader: A function that will load the appropriate data set from the
-                database for the tab to use. This argument will also accept a
-                tuple consisting of a function followed by the positional
-                arguments to pass to that function.
+            loader: Optional function that will load the appropriate data set
+                from the database for the tab to use. This argument will also
+                accept a tuple consisting of a function followed by the
+                positional arguments to pass to that function.
+            data: Optional data set to populate the page widget with. Ignored
+                if the loader argument is specified.
             extra_loader: Optional loader for a supplemental data set,
                 specified in the same way as the loader argument.
+            extra_data: Optional supplemental data set. Ignored if the
+                extra_loader argument is specified.
             button_callbacks: Optional dictionary of button attribute names and
                 functions (or Callback objects containing functions) to be
                 called when the corresponding button is clicked. If a
@@ -194,15 +199,18 @@ class Gui(QApplication):
         tab_id = page_type.get_tab_id(tab_id_arg)
         tab = self._widgets.tab_holder.get_tab(tab_id)
         if not tab:
-            if isinstance(loader, tuple):
-                loader = functools.partial(*loader)
-            tab = page_type(data=loader())
-            tab.refresher = loader
-            self.database_modified.connect(tab.refresh)
+            if loader:
+                if isinstance(loader, tuple):
+                    loader = functools.partial(*loader)
+                data = loader()
             if extra_loader:
                 if isinstance(extra_loader, tuple):
                     extra_loader = functools.partial(*extra_loader)
-                tab.extra_data = extra_loader()
+                extra_data = extra_loader()
+            tab = page_type(data=data, extra_data=extra_data)
+            if loader:
+                tab.refresher = loader
+                self.database_modified.connect(tab.refresh)
                 # TODO: Refresher for extra_data?
             for button_attr, callback in button_callbacks.items():
                 if isinstance(callback, Callback):
@@ -214,28 +222,6 @@ class Gui(QApplication):
             if replace_tab:
                 self._widgets.tab_holder.close_tab(replace_tab)
         self._widgets.tab_holder.setCurrentWidget(tab)
-
-    def load_person(self, person_id):
-        """
-        Get person data from the database and massage it a bit so that it's
-        ready to be fed to a page widget.
-
-        Args:
-            person_id: The ID of the person to retrieve.
-
-        Returns:
-            The person's data as a dictionary.
-
-        """
-        person_data = self._db.get_person(person_id)
-        contact_info_types = list()
-        for id, name, *_ in self._db.get_other_contact_info_types():
-            contact_info_types.append((id, name))
-        person_data["other_contact_info"] = (
-            person_data["other_contact_info"],
-            contact_info_types,
-        )
-        return person_data
 
     def view_person_details(self, person_id, replace_tab=None):
         """
@@ -253,10 +239,13 @@ class Gui(QApplication):
             page_type=PersonDetails,
             tab_id_arg=person_id,
             replace_tab=replace_tab,
-            loader=(self.load_person, person_id),
+            loader=(self._db.get_person, person_id),
+            extra_data={
+                "other_contact_info": self._db.get_other_contact_info_types()
+            },
             button_callbacks={
                 "edit_button": Callback(self.edit_person, (person_id,),
-                                        self_ref_kw="replace_tab"),
+                                        self_ref_kw="replace_tab")
             },
         )
 
@@ -387,14 +376,12 @@ class Gui(QApplication):
             tab.add_button.clicked.connect(add)
 
             def refresher():
-                contact_info_types = self._db.get_other_contact_info_types()
+                ci_types = self._db.get_other_contact_info_types_usage()
                 email_address_count = self._db.count_email_addresses()
                 phone_number_count = self._db.count_phone_numbers()
-                contact_info_types.insert(0, ("", "Email",
-                                              email_address_count))
-                contact_info_types.insert(1, ("", "Phone",
-                                              phone_number_count))
-                return contact_info_types
+                ci_types.insert(0, ("", "Email", email_address_count))
+                ci_types.insert(1, ("", "Phone", phone_number_count))
+                return ci_types
             tab.refresher = refresher
             tab.refresh()
             self.database_modified.connect(tab.refresh)
