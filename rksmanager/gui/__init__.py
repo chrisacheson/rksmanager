@@ -226,8 +226,8 @@ class Gui(QApplication):
     def view_person_details(self, person_id, replace_tab=None):
         """
         Open or focus the Person Details tab for the specified person. Called
-        after the user clicks save in the Create Person tab or when they double
-        click on a person in the View People tab.
+        after the user clicks save in the Create Person or Edit Person tabs or
+        when they double click on a person in the View People tab.
 
         Args:
             person_id: The ID of the person to show the details of.
@@ -264,43 +264,33 @@ class Gui(QApplication):
 
         """
         if person_id:
-            tab_id = PersonEditor.get_tab_id(person_id)
+            page_type = PersonEditor
+            loader = (self._db.get_person, person_id)
+            data = None
+            cancel = Callback(self.view_person_details, (person_id,),
+                              self_ref_kw="replace_tab")
         else:
-            tab_id = PersonCreator.get_tab_id()
-        tab = self._widgets.tab_holder.get_tab(tab_id)
-        if not tab:
-            if person_id:
-                person_data = self._db.get_person(person_id)
-                page_type = PersonEditor
-            else:
-                person_data = {"id": "Not assigned yet"}
-                page_type = PersonCreator
-            extra_data = {
+            page_type = PersonCreator
+            loader = None
+            data = {"id": "Not assigned yet"}
+            cancel = Callback(self._widgets.tab_holder.close_tab,
+                              self_ref_kw="tab")
+        self.create_or_focus_tab(
+            page_type=page_type,
+            tab_id_arg=person_id,
+            replace_tab=replace_tab,
+            loader=loader,
+            data=data,
+            extra_data={
                 "other_contact_info": self._db.get_other_contact_info_types()
-            }
-            tab = page_type(data=person_data, extra_data=extra_data)
-
-            # Cancel button callback. Closes the tab. If we were editing an
-            # existing person, open the person in a new Person Details tab.
-            def cancel():
-                if person_id:
-                    # Go "back" to the details of the person we're editing
-                    self.view_person_details(person_id, tab)
-                else:
-                    self._widgets.tab_holder.close_tab(tab)
-            tab.cancel_button.clicked.connect(cancel)
-
-            # Save button callback. Saves the person to the database, closes
-            # the tab, and opens the person in a new Person Details tab.
-            def save():
-                self.save_person(tab, person_id)
-            tab.save_button.clicked.connect(save)
-
-            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id,
-                                            replace_tab)
-            if replace_tab:
-                self._widgets.tab_holder.close_tab(replace_tab)
-        self._widgets.tab_holder.setCurrentWidget(tab)
+            },
+            button_callbacks={
+                "cancel_button": cancel,
+                "save_button": Callback(self.save_person,
+                                        kwargs={"person_id": person_id},
+                                        self_ref_kw="editor"),
+            },
+        )
 
     def save_person(self, editor, person_id=None):
         """
