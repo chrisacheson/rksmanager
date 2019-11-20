@@ -271,16 +271,14 @@ class Gui(QApplication):
         if not tab:
             if person_id:
                 person_data = self._db.get_person(person_id)
-                oci = person_data["other_contact_info"]
                 page_type = PersonEditor
             else:
                 person_data = {"id": "Not assigned yet"}
-                oci = ()
                 page_type = PersonCreator
-            oci_types = self._db.get_other_contact_info_types()
-            combo_items = [(cit["id"], cit["name"]) for cit in oci_types]
-            person_data["other_contact_info"] = (oci, combo_items)
-            tab = page_type(data=person_data)
+            extra_data = {
+                "other_contact_info": self._db.get_other_contact_info_types()
+            }
+            tab = page_type(data=person_data, extra_data=extra_data)
 
             # Cancel button callback. Closes the tab. If we were editing an
             # existing person, open the person in a new Person Details tab.
@@ -316,11 +314,7 @@ class Gui(QApplication):
                 person will be created.
 
         """
-        values = editor.values
-        # ComboListEdit gives us a list of widget items and a list of combo box
-        # items. We only want the former.
-        values["other_contact_info"], _ = values["other_contact_info"]
-        person_id = self._db.save_person(values, person_id)
+        person_id = self._db.save_person(editor.values, person_id)
         self.database_modified.emit()
         self.view_person_details(person_id, editor)
 

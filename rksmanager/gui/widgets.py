@@ -612,7 +612,7 @@ class MappedLabel(QLabel):
 
     def __init__(self, mapping=None):
         super().__init__()
-        self.mapping = mapping or dict()
+        self._mapping = mapping or dict()
         self._value = self.empty_value
 
     def setText(self, value):
@@ -639,6 +639,20 @@ class MappedLabel(QLabel):
     def value(self, value):
         self._value = value
         self.setText(value)
+
+    @property
+    def mapping(self):
+        """
+        The mapping dictionary. Setting this will update the label's text based
+        on the new mapping.
+
+        """
+        return self._mapping
+
+    @mapping.setter
+    def mapping(self, mapping):
+        self._mapping = mapping
+        self.setText(self._value)
 
 
 class MappedDoubleListLabel(MappedLabel):
@@ -686,13 +700,14 @@ class ComboListEdit(QWidget):
     box.
 
     """
-    empty_value = ([], [])
+    empty_value = list()
 
     def __init__(self):
         super().__init__()
         # We have to track this ourselves, because QGridLayout.rowCount() never
         # shrinks
         self.num_items = 0
+        self._mapping = dict()
         self.layout = GridLayout()
         self._combo_box = QComboBox()
         self._text_box = QLineEdit()
@@ -788,43 +803,52 @@ class ComboListEdit(QWidget):
     @property
     def value(self):
         """
-        A 2-tuple containing a list of the widget's items, and a list of the
-        combo box's items. For example:
+        A list of the widget's items. For example:
 
-        (
-            [
-                # Widget items. The integers represent which combo box item the
-                # user selected.
-                (2, "Text entered by the user"),
-                (1, "More text entered by the user"),
-                (3, "Even more text entered by the user"),
-            ],
-            [
-                # Combo box items. The integers are item IDs, while the strings
-                # are the text actually shown to the user in the combo box.
-                (1, "Combo box option A"),
-                (2, "Combo box option B"),
-                (3, "Combo box option C"),
-            ],
-        )
+        value = [
+            # Widget items. The integers represent which combo box item the
+            # user selected.
+            (2, "Text entered by the user"),
+            (1, "More text entered by the user"),
+            (3, "Even more text entered by the user"),
+        ]
 
         """
         items = []
         for i in range(self.num_items):
             items.append(self.get_item(i))
-        combo_items = list(self._mapping.items())
-        return (items, combo_items)
+        return items
 
     @value.setter
     def value(self, value):
         while self.num_items:
             self.pop(0)
-        self._combo_box.clear()
-        items, combo_items = value
-        self._combo_box.addItem("")
-        for combo_item in combo_items:
-            combo_data, combo_text = combo_item
-            self._combo_box.addItem(combo_text, combo_data)
-        self._mapping = dict(combo_items)
-        for item in items:
+        for item in value:
             self.append(item)
+
+    @property
+    def extra_data(self):
+        """
+        The mapping dictionary as a list of item tuples. Setting this will
+        update the combo box and labels based on the new mapping. For example:
+
+        extra_data = [
+            # Combo box items. The integers are item IDs, while the strings
+            # are the text actually shown to the user in the combo box.
+            (1, "Combo box option A"),
+            (2, "Combo box option B"),
+            (3, "Combo box option C"),
+        ]
+
+        """
+        return self._mapping.items()
+
+    @extra_data.setter
+    def extra_data(self, extra_data):
+        self._mapping = dict(extra_data)
+        for i in range(self.num_items):
+            self.layout.itemAtPosition(i, 0).widget().mapping = self._mapping
+        self._combo_box.clear()
+        self._combo_box.addItem("")
+        for combo_data, combo_text in extra_data:
+            self._combo_box.addItem(combo_text, combo_data)
