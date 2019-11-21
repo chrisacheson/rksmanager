@@ -19,19 +19,13 @@ from .widgets import (Label, LineEdit, TextEdit, ListLabel, ListEdit,
 
 class BasePage(QWidget):
     """
-    Base class for all tab page widgets. Subclasses should set the tab_id_fmt
-    and tab_name_fmt attributes appropriate format strings.
+    Base class for all tab page widgets. Subclasses should set the tab_name_fmt
+    attribute to an appropriate format string.
 
-    If the tab_id_fmt attribute contains a string formatting replacement field,
-    get_tab_id() will return a tab id string with the field replaced by the
-    specified data id:
-
-        tab_id_fmt = "edit_person_{:d}  # :d imposes an integer-only
-                                        # restriction
-
-    Any replacement fields in the tab_name_fmt attribute will be replaced by
-    the corresponding data from the widget's data set. The resulting tab name
-    string is accessible through the tab_name attribute.
+    If the tab_name_fmt attribute contains any string formatting replacement
+    fields, they will be replaced by the corresponding data from the widget's
+    data set. The resulting tab name string is accessible through the tab_name
+    attribute.
 
         tab_name_fmt = "Person Details ({id:d}: {first_name_or_nickname})"
 
@@ -50,7 +44,8 @@ class BasePage(QWidget):
             The tab id as a string.
 
         """
-        return cls.tab_id_fmt.format(data_id)
+        return "{class_name}({data_id})".format(class_name=cls.__name__,
+                                                data_id=data_id or "")
 
     @property
     def tab_name(self):
@@ -348,7 +343,6 @@ class BaseList(BasePage):
 
 class PersonDetails(BaseDetails):
     """Viewer widget for Create Person and Person Details tabs."""
-    tab_id_fmt = "person_details_{:d}"
     tab_name_fmt = "Person Details ({id:d}: {first_name_or_nickname})"
 
     fields = (
@@ -364,7 +358,6 @@ class PersonDetails(BaseDetails):
 
 class PersonEditor(BaseEditor):
     """Editor widget for the Person Details tab."""
-    tab_id_fmt = "edit_person_{:d}"
     tab_name_fmt = "Edit Person ({id:d}: {first_name_or_nickname})"
 
     fields = (
@@ -380,7 +373,6 @@ class PersonEditor(BaseEditor):
 
 class PersonCreator(PersonEditor):
     """Editor widget for the Create Person tab."""
-    tab_id_fmt = "create_person"
     tab_name_fmt = "Create Person"
 
 
@@ -391,7 +383,6 @@ class PersonListModel(BaseListModel):
 
 class PersonList(BaseList):
     """Table viewer widget for the People tab."""
-    tab_id_fmt = "view_people"
     tab_name_fmt = "People"
 
     model_class = PersonListModel
@@ -407,7 +398,6 @@ class ContactInfoTypeListModel(BaseListModel):
 
 class ContactInfoTypeList(BaseList):
     """Table viewer widget for the Manage Contact Info Types tab."""
-    tab_id_fmt = "manage_contact_info_types"
     tab_name_fmt = "Manage Contact Info Types"
 
     model_class = ContactInfoTypeListModel
@@ -428,7 +418,6 @@ class MembershipTypeListModel(BaseListModel):
 
 class MembershipTypeList(BaseList):
     """Table viewer widget for the Manage Membership Types tab."""
-    tab_id_fmt = "manage_membership_types"
     tab_name_fmt = "Manage Membership Types"
 
     model_class = MembershipTypeListModel
@@ -450,7 +439,6 @@ class MembershipPricingOptionListModel(BaseListModel):
 
 class MembershipPricingOptionList(BaseList):
     """Table viewer widget for the Membership Type Pricing Options tab."""
-    tab_id_fmt = "membership_type_pricing_options_{:d}"
     tab_name_fmt = "{name} Membership Pricing Options"
 
     model_class = MembershipPricingOptionListModel
@@ -463,7 +451,6 @@ class MembershipPricingOptionList(BaseList):
 
 class MembershipPricingOptionEditor(BaseEditor):
     """Editor widget for the Edit Pricing Option tab."""
-    tab_id_fmt = "edit_pricing_option_{:d}"
     tab_name_fmt = "Edit {membership_type_name} Membership Pricing Option"
 
     fields = (
@@ -477,5 +464,4 @@ class MembershipPricingOptionEditor(BaseEditor):
 
 class MembershipPricingOptionCreator(MembershipPricingOptionEditor):
     """Editor widget for the Create Pricing Option tab."""
-    tab_id_fmt = "create_pricing_option_{:d}"
     tab_name_fmt = "Create {membership_type_name} Membership Pricing Option"
