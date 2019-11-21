@@ -57,7 +57,7 @@ class Database:
             detect_types=sqlite3.PARSE_DECLTYPES,
         )
         self._connection = connection
-        connection.row_factory = sqlite3.Row
+        connection.row_factory = Row
         # Enable foreign key enforcement
         connection.execute("pragma foreign_keys = on;")
 
@@ -529,7 +529,7 @@ class Database:
         Get all people from the database.
 
         Returns:
-            A list of sqlite3.Row objects.
+            A list of Row objects.
 
         """
         with self._connection:
@@ -552,7 +552,7 @@ class Database:
         Get all "other" contact info types from the database.
 
         Returns:
-            A list of sqlite3.Row objects.
+            A list of Row objects.
 
         """
         with self._connection:
@@ -569,7 +569,7 @@ class Database:
         Get all "other" contact info types and the usage count for each type.
 
         Returns:
-            A list of sqlite3.Row objects.
+            A list of Row objects.
 
         """
         with self._connection:
@@ -645,7 +645,7 @@ class Database:
         Get all membership types from the database.
 
         Returns:
-            A list of sqlite3.Row objects.
+            A list of Row objects.
 
         """
         with self._connection:
@@ -697,7 +697,7 @@ class Database:
             membership_type_id: The ID of the membership type.
 
         Returns:
-            A sqlite3.Row object.
+            A Row object.
 
         """
         with self._connection:
@@ -720,7 +720,7 @@ class Database:
             membership_type_id: The ID of the membership type.
 
         Returns:
-            A list of sqlite3.Row objects.
+            A list of Row objects.
 
         """
         with self._connection:
@@ -743,7 +743,7 @@ class Database:
             pricing_option_id: The ID of the pricing option.
 
         Returns:
-            A sqlite3.Row object.
+            A Row object.
 
         """
         with self._connection:
@@ -805,3 +805,25 @@ class Database:
                     data,
                 ).lastrowid
             return pricing_option_id
+
+
+class Row(sqlite3.Row):
+    """sqlite3.Row class with some extra methods."""
+    def get(self, key, default=None):
+        """
+        Dictionary-like get() method.
+
+        Args:
+            key: The key corresponding to the desired value.
+            default: Optional value to return if key doesn't exist. Defaults to
+                None.
+
+        Returns:
+            The value corresponding to key if it exists, or the default value
+                otherwise.
+
+        """
+        if key in self:
+            return self[key]
+        else:
+            return default
