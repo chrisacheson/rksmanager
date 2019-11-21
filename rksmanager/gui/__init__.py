@@ -400,38 +400,20 @@ class Gui(QApplication):
         Membership Types" tab is double clicked.
 
         """
-        tab_id = MembershipPricingOptionList.get_tab_id(membership_type_id)
-        tab = self._widgets.tab_holder.get_tab(tab_id)
-        if not tab:
-            mtype_data = self._db.get_membership_type(membership_type_id)
-            tab = MembershipPricingOptionList(extra_data=mtype_data)
-
-            # Add New Pricing Option button callback. Open or focus a Create
-            # Pricing Option tab for this membership type.
-            def add():
-                self.edit_pricing_option(membership_type_id)
-            tab.add_button.clicked.connect(add)
-
-            # Table double-click callback. Opens or focuses the Edit Pricing
-            # Option tab for the pricing option that was clicked on.
-            #
-            # Args:
-            #   index: A QModelIndex representing the item that was clicked on.
-            def edit(index):
-                id_index = index.siblingAtColumn(0)
-                pricing_option_id = tab.proxy_model.itemData(id_index)[0]
-                self.edit_pricing_option(membership_type_id, pricing_option_id)
-            tab.table_view.doubleClicked.connect(edit)
-
-            tab.refresher = functools.partial(
-                self._db.get_membership_type_pricing_options,
-                membership_type_id,
-            )
-            tab.refresh()
-            self.database_modified.connect(tab.refresh)
-
-            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id)
-        self._widgets.tab_holder.setCurrentWidget(tab)
+        self.create_or_focus_tab(
+            page_type=MembershipPricingOptionList,
+            tab_id_arg=membership_type_id,
+            loader=(self._db.get_membership_type_pricing_options,
+                    membership_type_id),
+            extra_data=self._db.get_membership_type(membership_type_id),
+            signal_connections={
+                "add_button": Callback(self.edit_pricing_option,
+                                       (membership_type_id,)),
+                "self.table_double_clicked": (
+                    Callback(self.edit_pricing_option, (membership_type_id,))
+                ),
+            },
+        )
 
     def edit_pricing_option(self, membership_type_id, pricing_option_id=None):
         """
