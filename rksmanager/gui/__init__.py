@@ -4,7 +4,6 @@ and controls access to the database handler object.
 
 """
 import traceback
-import types
 import sys
 import functools
 
@@ -31,18 +30,15 @@ class Gui(QApplication):
 
     def __init__(self):
         self._db = None
-        # For holding references to specific widgets that we need to access
-        # later
-        self._widgets = types.SimpleNamespace()
         super().__init__()
 
     def start(self):
         """Display the main window and pass control to the Gui object."""
         main_window = QMainWindow()
-        self._widgets.main_window = main_window
+        self.main_window = main_window
         self._build_menu_bar(main_window)
         tab_holder = TabHolder()
-        self._widgets.tab_holder = tab_holder
+        self.tab_holder = tab_holder
         main_window.setCentralWidget(tab_holder)
         main_window.setGeometry(0, 0, 1000, 700)
         main_window.show()
@@ -84,7 +80,7 @@ class Gui(QApplication):
 
         add_action(text="Exit",
                    menu=file_menu,
-                   triggered=self._widgets.main_window.close)
+                   triggered=self.main_window.close)
 
         people_menu = menu_bar.addMenu("People")
         people_menu.setEnabled(False)
@@ -119,7 +115,7 @@ class Gui(QApplication):
                 select a file or choose a filename.
 
         """
-        window = self._widgets.main_window
+        window = self.main_window
         if not filename:
             filename = dialogboxes.create_or_open_database_dialog(window)
         if filename:
@@ -159,7 +155,7 @@ class Gui(QApplication):
 
         """
         if self._db:
-            self._widgets.tab_holder.close_all_tabs()
+            self.tab_holder.close_all_tabs()
             self._db.close()
             self._db = None
             self.database_is_open.emit(False)
@@ -201,7 +197,7 @@ class Gui(QApplication):
 
         """
         tab_id = page_type.get_tab_id(tab_id_arg)
-        tab = self._widgets.tab_holder.get_tab(tab_id)
+        tab = self.tab_holder.get_tab(tab_id)
         if not tab:
             if loader:
                 if isinstance(loader, tuple):
@@ -229,11 +225,10 @@ class Gui(QApplication):
                     emitter = getattr(tab, emitter_name)
                 signal = getattr(emitter, signal_name)
                 signal.connect(callback)
-            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id,
-                                            replace_tab)
+            self.tab_holder.addTab(tab, tab.tab_name, tab_id, replace_tab)
             if replace_tab:
-                self._widgets.tab_holder.close_tab(replace_tab)
-        self._widgets.tab_holder.setCurrentWidget(tab)
+                self.tab_holder.close_tab(replace_tab)
+        self.tab_holder.setCurrentWidget(tab)
 
     def view_person_details(self, person_id, replace_tab=None):
         """
@@ -285,8 +280,7 @@ class Gui(QApplication):
             page_type = PersonCreator
             loader = None
             data = {"id": "Not assigned yet"}
-            cancel = Callback(self._widgets.tab_holder.close_tab,
-                              self_ref_kw="tab")
+            cancel = Callback(self.tab_holder.close_tab, self_ref_kw="tab")
         self.create_or_focus_tab(
             page_type=page_type,
             tab_id_arg=person_id,
@@ -345,7 +339,7 @@ class Gui(QApplication):
         # TODO: Prevent the user from adding "Email" or "Phone" once we get
         # around to doing validators
         def add():
-            window = self._widgets.main_window
+            window = self.main_window
             name = dialogboxes.add_new_contact_info_type_dialog(window)
             if name is not None:
                 self._db.create_other_contact_info_type(name)
@@ -376,7 +370,7 @@ class Gui(QApplication):
         # Add New Membership Type button callback. Prompts the user for a
         # name, then creates a new membership type with that name.
         def add():
-            window = self._widgets.main_window
+            window = self.main_window
             name = dialogboxes.add_new_membership_type_dialog(window)
             if name is not None:
                 self._db.create_membership_type(name)
@@ -439,7 +433,7 @@ class Gui(QApplication):
             self._db.save_membership_type_pricing_option(tab.values,
                                                          pricing_option_id)
             self.database_modified.emit()
-            self._widgets.tab_holder.close_tab(tab)
+            self.tab_holder.close_tab(tab)
 
         if pricing_option_id:
             page_type = MembershipPricingOptionEditor
@@ -459,7 +453,7 @@ class Gui(QApplication):
             loader=loader,
             data=data,
             signal_connections={
-                "cancel_button": Callback(self._widgets.tab_holder.close_tab,
+                "cancel_button": Callback(self.tab_holder.close_tab,
                                           self_ref_kw="tab"),
                 "save_button": Callback(save, self_ref_kw="tab"),
             },
