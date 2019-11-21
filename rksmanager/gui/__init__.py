@@ -187,8 +187,9 @@ class Gui(QApplication):
                 functions (or Callback objects containing functions) to be
                 called when the corresponding signal is emitted. Signals are
                 specified as "object.signal", where object is an attribute of
-                the page widget, such as a button. If the signal name is
-                omitted, it will default to "clicked". If a Callback's
+                the page widget, such as a button. If "self" is specified for
+                the object, the page widget itself will be used. If the signal
+                name is omitted, it will default to "clicked". If a Callback's
                 self_ref_kw attribute is set, the function will be passed a
                 reference to the page widget via the specified keyword
                 argument.
@@ -220,10 +221,13 @@ class Gui(QApplication):
                     callback = callback.bind(self_ref=tab)
                 if "." in signal_string:
                     emitter_name, signal_name = signal_string.split(".")
-                    emitter = getattr(tab, emitter_name)
-                    signal = getattr(emitter, signal_name)
                 else:
-                    signal = getattr(tab, signal_string).clicked
+                    emitter_name, signal_name = signal_string, "clicked"
+                if emitter_name == "self":
+                    emitter = tab
+                else:
+                    emitter = getattr(tab, emitter_name)
+                signal = getattr(emitter, signal_name)
                 signal.connect(callback)
             self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id,
                                             replace_tab)
@@ -322,20 +326,12 @@ class Gui(QApplication):
         is selected.
 
         """
-        # Table double-click callback. Opens the person that was clicked on
-        # in a new Person Details tab.
-        #
-        # Args:
-        #   index: A QModelIndex representing the item that was clicked on.
-        def details(index):
-            id_index = index.siblingAtColumn(0)
-            person_id = index.model().itemData(id_index)[0]
-            self.view_person_details(person_id)
-
         self.create_or_focus_tab(
             page_type=PersonList,
             loader=self._db.get_people,
-            signal_connections={"table_view.doubleClicked": details},
+            signal_connections={
+                "self.table_double_clicked": self.view_person_details
+            },
         )
 
     def manage_contact_info_types(self):
@@ -386,22 +382,14 @@ class Gui(QApplication):
                 self._db.create_membership_type(name)
                 self.database_modified.emit()
 
-        # Table double-click callback. Opens or focuses the Membership Type
-        # Pricing Options tab for the membership type that was clicked on.
-        #
-        # Args:
-        #   index: A QModelIndex representing the item that was clicked on.
-        def pricing_options(index):
-            id_index = index.siblingAtColumn(0)
-            membership_type_id = index.model().itemData(id_index)[0]
-            self.membership_type_pricing_options(membership_type_id)
-
         self.create_or_focus_tab(
             page_type=MembershipTypeList,
             loader=self._db.get_membership_types,
             signal_connections={
                 "add_button": add,
-                "table_view.doubleClicked": pricing_options,
+                "self.table_double_clicked": (
+                    self.membership_type_pricing_options
+                ),
             },
         )
 

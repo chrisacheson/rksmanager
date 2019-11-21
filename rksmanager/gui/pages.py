@@ -9,7 +9,8 @@ from decimal import Decimal
 
 from PySide2.QtWidgets import (QWidget, QFormLayout, QHBoxLayout, QPushButton,
                                QTableView, QVBoxLayout, QAbstractItemView)
-from PySide2.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel
+from PySide2.QtCore import (Qt, QAbstractTableModel, QSortFilterProxyModel,
+                            Signal)
 
 from .widgets import (Label, LineEdit, TextEdit, ListLabel, ListEdit,
                       PrimaryItemListLabel, PrimaryItemListEdit, ComboListEdit,
@@ -286,6 +287,8 @@ class BaseList(BasePage):
             extra_data attribute.
 
     """
+    table_double_clicked = Signal(int)
+
     def __init__(self, data=None, extra_data=None):
         super().__init__()
         self._model = self.model_class()
@@ -296,10 +299,32 @@ class BaseList(BasePage):
         self.table_view.setModel(self.proxy_model)
         self.table_view.setSortingEnabled(True)
         self.table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table_view.doubleClicked.connect(
+            self.emit_table_double_click_with_data_id
+        )
         layout.addWidget(self.table_view)
         self.setLayout(layout)
         self.data = data or list()
         self.extra_data = extra_data or dict()
+
+    def emit_table_double_click_with_data_id(self, index):
+        """
+        Emit the table_double_clicked signal with the data ID of the row that
+        was clicked on. Called when the user double clicks on a row in our
+        QTableView.
+
+        Args:
+            The QModelIndex passed by the table_view.doubleClicked signal.
+
+        """
+        # TODO: Figure out a better way to get the ID besides assuming that
+        # it's in the first (or any) column
+        id_index = index.siblingAtColumn(0)
+        try:
+            data_id = int(index.model().itemData(id_index)[0])
+            self.table_double_clicked.emit(data_id)
+        except ValueError:
+            pass
 
     @property
     def data(self):
