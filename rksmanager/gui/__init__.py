@@ -430,41 +430,40 @@ class Gui(QApplication):
                 the save button is clicked.
 
         """
+        # Save button callback. Saves the pricing option to the database
+        # and closes the tab.
+        #
+        # Args:
+        #   tab: This page widget.
+        def save(tab):
+            self._db.save_membership_type_pricing_option(tab.values,
+                                                         pricing_option_id)
+            self.database_modified.emit()
+            self._widgets.tab_holder.close_tab(tab)
+
         if pricing_option_id:
             page_type = MembershipPricingOptionEditor
-            tab_id = page_type.get_tab_id(pricing_option_id)
+            loader = (self._db.get_membership_type_pricing_option,
+                      pricing_option_id)
+            data = None
         else:
             page_type = MembershipPricingOptionCreator
-            tab_id = page_type.get_tab_id(membership_type_id)
-        tab = self._widgets.tab_holder.get_tab(tab_id)
-        if not tab:
-            if pricing_option_id:
-                po_data = self._db.get_membership_type_pricing_option(
-                    pricing_option_id
-                )
-            else:
-                mtype_data = self._db.get_membership_type(membership_type_id)
-                po_data = {"id": "Not assigned yet",
-                           "membership_type_id": membership_type_id,
-                           "membership_type_name": mtype_data["name"]}
-            tab = page_type(po_data)
-
-            # Cancel button callback. Closes the tab.
-            def cancel():
-                self._widgets.tab_holder.close_tab(tab)
-            tab.cancel_button.clicked.connect(cancel)
-
-            # Save button callback. Saves the pricing option to the database
-            # and closes the tab.
-            def save():
-                self._db.save_membership_type_pricing_option(tab.values,
-                                                             pricing_option_id)
-                self.database_modified.emit()
-                self._widgets.tab_holder.close_tab(tab)
-            tab.save_button.clicked.connect(save)
-
-            self._widgets.tab_holder.addTab(tab, tab.tab_name, tab_id)
-        self._widgets.tab_holder.setCurrentWidget(tab)
+            loader = None
+            mtype_data = self._db.get_membership_type(membership_type_id)
+            data = {"id": "Not assigned yet",
+                    "membership_type_id": membership_type_id,
+                    "membership_type_name": mtype_data["name"]}
+        self.create_or_focus_tab(
+            page_type=page_type,
+            tab_id_arg=pricing_option_id or membership_type_id,
+            loader=loader,
+            data=data,
+            signal_connections={
+                "cancel_button": Callback(self._widgets.tab_holder.close_tab,
+                                          self_ref_kw="tab"),
+                "save_button": Callback(save, self_ref_kw="tab"),
+            },
+        )
 
 
 class Callback:
