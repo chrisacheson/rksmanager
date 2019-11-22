@@ -6,15 +6,17 @@ gui.widgets module.
 
 """
 from decimal import Decimal
+import functools
+import sys
 
 from PySide2.QtWidgets import (QWidget, QFormLayout, QHBoxLayout, QPushButton,
                                QTableView, QVBoxLayout, QAbstractItemView)
-from PySide2.QtCore import (Qt, QAbstractTableModel, QSortFilterProxyModel,
-                            Signal)
+from PySide2.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel
 
 from .widgets import (Label, LineEdit, TextEdit, ListLabel, ListEdit,
                       PrimaryItemListLabel, PrimaryItemListEdit, ComboListEdit,
                       MappedDoubleListLabel)
+from . import dialogboxes
 
 
 class BasePage(QWidget):
@@ -29,7 +31,92 @@ class BasePage(QWidget):
 
         tab_name_fmt = "Person Details ({id:d}: {first_name_or_nickname})"
 
+    Subclasses can define a load() method with no arguments, which will be
+    called when the page is initialized and whenever the Gui.database_modified
+    signal is emitted. Alternatively, the loader attribute can be set to the
+    name of a Database method to use instead. If a data_id argument is passed
+    to this on initialization, it will be passed to the Database method as the
+    first argument.
+
+    If the default_data attribute is set, it will be used as an initial data
+    set for the page before the load() method is called.
+
+    If the extra_loader attribute is set or the load_extra() method is defined,
+    they will be treated similarly to the loader attribute and load() method
+    for a supplemental data set. Supplemental data is currently not refreshed
+    when the database changes.
+
     """
+    def __init__(self, gui, data_id=None):
+        super().__init__()
+        self.gui = gui
+        self.data_id = data_id
+
+        # Python is picky about when we're allowed to set an attribute to a
+        # class reference, so we may have to use class names instead. This loop
+        # converts them back to references.
+        for linked_class_attribute in ("details_class", "editor_class"):
+            if hasattr(self, linked_class_attribute):
+                linked_class = getattr(self, linked_class_attribute)
+                if isinstance(linked_class, str):
+                    this_module = sys.modules[__name__]
+                    linked_class = getattr(this_module, linked_class)
+                    setattr(self, linked_class_attribute, linked_class)
+
+        if hasattr(self, "default_data"):
+            self.data = self.default_data
+        self.load()
+        gui.database_modified.connect(self.load)
+        self.load_extra()
+
+    def load(self):
+        """
+        If the loader attribute is set, use the corresponding Database method
+        to set this page's data.
+
+        """
+        if hasattr(self, "loader"):
+            db_method = getattr(self.gui.db, self.loader)
+            if self.data_id:
+                db_method = functools.partial(db_method, self.data_id)
+            self.data = db_method()
+
+    def load_extra(self):
+        """
+        If the extra_loader attribute is set, use the corresponding Database
+        method to set this page's supplemental data.
+
+        """
+        if hasattr(self, "extra_loader"):
+            db_extra_method = getattr(self.gui.db, self.extra_loader)
+            if self.data_id:
+                self.extra_data = db_extra_method(self.data_id)
+            else:
+                self.extra_data = db_extra_method()
+
+    @classmethod
+    def create_or_focus(cls, gui, data_id=None, replace_tab=None):
+        """
+        Create a new tab page of this type with the given data ID, or focus it
+        if it already exists.
+
+        Args:
+            gui: A reference to the main Gui object.
+            data_id: Optional ID of the data set the page will be working with.
+            replace_tab: Optional tab ID, page widget, or index of a tab to
+                replace with this one.
+
+        """
+        tab_id = cls.get_tab_id(data_id)
+        tab = gui.tab_holder.get_tab(tab_id)
+        if not tab:
+            tab = cls(gui, data_id)
+            gui.tab_holder.addTab(tab, tab.tab_name, tab_id, replace_tab)
+            if replace_tab:
+                gui.tab_holder.close_tab(replace_tab)
+        gui.tab_holder.setCurrentWidget(tab)
+        return tab
+
     @classmethod
     def get_tab_id(cls, data_id=None):
         """
@@ -56,18 +143,6 @@ class BasePage(QWidget):
         """
         return self.tab_name_fmt.format(**self.data)
 
-    def refresh(self):
-        """
-        Populate the widget with fresh data from the database. This can be
-        connected to the Gui.database_modified() signal in order to
-        auto-refresh the widget's data whenever a change is made to the
-        database. The widget's refresher attribute should also be set to a
-        function that takes no arguments and returns an appropriate data set
-        from the database.
-
-        """
-        self.data = self.refresher()
-
 
 class BaseEditor(BasePage):
     """
@@ -85,20 +160,16 @@ class BaseEditor(BasePage):
             ("notes", "Notes", TextEdit),
         )
 
-    Args:
-        data: Optional initial data set as a dictionary of field id and widget
-            value pairs. Can be set later using the data attribute.
-        extra_data: Optional supplemental data set, as a dictionary of field id
-            and extra value pairs. Can be set later using the extra_data
-            attribute.
+    By default, "Cancel" and "Save" buttons will be created. Subclasses should
+    either define a save() method which will be called when the save button is
+    clicked, or override place_buttons() to create different buttons.
 
     """
     default_widget = LineEdit
 
-    def __init__(self, data=None, extra_data=None):
-        self._data = data or dict()
-        self._data_widgets = {}
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        self._data = dict()
+        self._data_widgets = dict()
         layout = QFormLayout()
         for i, field in enumerate(self.fields):
             if len(field) > 2:
@@ -109,10 +180,9 @@ class BaseEditor(BasePage):
             widget = widget_type()
             layout.addRow(label, widget)
             self._data_widgets[field_id] = widget
+        super().__init__(*args, **kwargs)
         self.setLayout(layout)
         self.place_buttons()
-        self.values = self._data
-        self.extra_data = extra_data or dict()
 
     def place_buttons(self):
         """
@@ -122,11 +192,17 @@ class BaseEditor(BasePage):
 
         """
         button_layout = QHBoxLayout()
-        self.cancel_button = QPushButton("Cancel")
-        button_layout.addWidget(self.cancel_button)
-        self.save_button = QPushButton("Save")
-        button_layout.addWidget(self.save_button)
+        cancel_button = QPushButton("Cancel")
+        cancel_button.clicked.connect(self.cancel)
+        button_layout.addWidget(cancel_button)
+        save_button = QPushButton("Save")
+        save_button.clicked.connect(self.save)
+        button_layout.addWidget(save_button)
         self.layout().addRow(button_layout)
+
+    def cancel(self):
+        """Close the editor tab. Called when the cancel button is clicked."""
+        self.gui.tab_holder.close_tab(self)
 
     @property
     def data(self):
@@ -209,16 +285,29 @@ class BaseDetails(BaseEditor):
             ("notes", "Notes"),
         )
 
-    Args:
-        data: Optional initial data set. Can be set later using the data
-            attribute.
+    By default, an "Edit" button will be created. Subclasses should either
+    define an edit() method which will be called when the edit button is
+    clicked, or override place_buttons() to create different buttons.
+    Alternatively, if the editor_class attribute is set to a tab page widget
+    class, that will be used to edit the data set.
 
     """
     default_widget = Label
 
     def place_buttons(self):
-        self.edit_button = QPushButton("Edit")
-        self.layout().addRow(self.edit_button)
+        edit_button = QPushButton("Edit")
+        edit_button.clicked.connect(self.edit)
+        self.layout().addRow(edit_button)
+
+    def edit(self):
+        """
+        If the editor_class attribute is defined, replace this tab with an
+        editor tab for the same data set. Called when the edit button is
+        clicked.
+
+        """
+        self.editor_class.create_or_focus(self.gui, self.data_id,
+                                          replace_tab=self)
 
 
 class BaseListModel(QAbstractTableModel):
@@ -273,19 +362,13 @@ class BaseList(BasePage):
     Generic table viewer widget. Subclasses should set the model_class
     attribute to a subclass of BaseListModel.
 
-    Args:
-        data: Optional initial data set, as a 2-dimensional list or similar.
-            Can be set later using the data attribute.
-        extra_data: Optional supplemental data set, as a dictionary. This data
-            won't be displayed in the QTableView, but can be used for other
-            purposes such as setting the tab name. Can be set later using the
-            extra_data attribute.
+    If a subclass defines an open_item method that accepts one argument, when
+    an item in the table is clicked on, that method will be called with the ID
+    of the clicked item. Alternatively, if the details_class attribute is set
+    to a tab page widget class, that will be used to open the item.
 
     """
-    table_double_clicked = Signal(int)
-
-    def __init__(self, data=None, extra_data=None):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
         self._model = self.model_class()
         self.proxy_model = QSortFilterProxyModel()
         self.proxy_model.setSourceModel(self._model)
@@ -294,32 +377,39 @@ class BaseList(BasePage):
         self.table_view.setModel(self.proxy_model)
         self.table_view.setSortingEnabled(True)
         self.table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.table_view.doubleClicked.connect(
-            self.emit_table_double_click_with_data_id
-        )
+        self.table_view.doubleClicked.connect(self.table_double_clicked)
         layout.addWidget(self.table_view)
+        self.extra_data = dict()
+        super().__init__(*args, **kwargs)
         self.setLayout(layout)
-        self.data = data or list()
-        self.extra_data = extra_data or dict()
 
-    def emit_table_double_click_with_data_id(self, index):
+    def table_double_clicked(self, index):
         """
-        Emit the table_double_clicked signal with the data ID of the row that
-        was clicked on. Called when the user double clicks on a row in our
-        QTableView.
+        Called when the QTableView is double clicked. If the open_item() method
+        is defined, call it and pass the ID of the item that was clicked on.
 
         Args:
             The QModelIndex passed by the table_view.doubleClicked signal.
 
         """
-        # TODO: Figure out a better way to get the ID besides assuming that
-        # it's in the first (or any) column
-        id_index = index.siblingAtColumn(0)
-        try:
-            data_id = int(index.model().itemData(id_index)[0])
-            self.table_double_clicked.emit(data_id)
-        except ValueError:
-            pass
+        if hasattr(self, "open_item"):
+            # TODO: Figure out a better way to get the ID besides assuming that
+            # it's in the first (or any) column
+            id_index = index.siblingAtColumn(0)
+            try:
+                data_id = int(index.model().itemData(id_index)[0])
+                self.open_item(data_id)
+            except ValueError:
+                pass
+
+    def open_item(self, data_id):
+        """
+        If the details_class attribute is defined, use it to open a Details tab
+        for the specified item.
+
+        """
+        if hasattr(self, "details_class"):
+            self.details_class.create_or_focus(self.gui, data_id)
 
     @property
     def data(self):
@@ -342,7 +432,7 @@ class BaseList(BasePage):
 
 
 class PersonDetails(BaseDetails):
-    """Viewer widget for Create Person and Person Details tabs."""
+    """Viewer widget for Person Details tab."""
     tab_name_fmt = "Person Details ({id:d}: {first_name_or_nickname})"
 
     fields = (
@@ -354,12 +444,18 @@ class PersonDetails(BaseDetails):
         ("pronouns", "Pronouns"),
         ("notes", "Notes"),
     )
+    loader = "get_person"
+    editor_class = "PersonEditor"
+
+    def load_extra(self):
+        """Fetch "other" contact info types from the database."""
+        self.extra_data = {
+            "other_contact_info": self.gui.db.get_other_contact_info_types()
+        }
 
 
-class PersonEditor(BaseEditor):
-    """Editor widget for the Person Details tab."""
-    tab_name_fmt = "Edit Person ({id:d}: {first_name_or_nickname})"
-
+class BasePersonEditor(BaseEditor):
+    """Common editor widget for the Create Person and Edit Person tabs."""
     fields = (
         ("id", "Person ID", Label),
         ("first_name_or_nickname", "First name\nor nickname", LineEdit),
@@ -370,10 +466,42 @@ class PersonEditor(BaseEditor):
         ("notes", "Notes", TextEdit),
     )
 
+    def load_extra(self):
+        """Fetch "other" contact info types from the database."""
+        self.extra_data = {
+            "other_contact_info": self.gui.db.get_other_contact_info_types()
+        }
 
-class PersonCreator(PersonEditor):
+    def save(self):
+        """
+        Save the editor's current values to the database and replace this tab
+        with a details tab for the same person. Called when the save button
+        is clicked.
+
+        """
+        person_id = self.gui.db.save_person(self.values, self.data_id)
+        self.gui.database_modified.emit()
+        PersonDetails.create_or_focus(self.gui, person_id, replace_tab=self)
+
+
+class PersonEditor(BasePersonEditor):
+    """Editor widget for the Person Details tab."""
+    tab_name_fmt = "Edit Person ({id:d}: {first_name_or_nickname})"
+    loader = "get_person"
+
+    def cancel(self):
+        """
+        Replace the editor tab with a details tab for the same person. Called
+        when the cancel button is clicked.
+
+        """
+        PersonDetails.create_or_focus(self.gui, self.data_id, replace_tab=self)
+
+
+class PersonCreator(BasePersonEditor):
     """Editor widget for the Create Person tab."""
     tab_name_fmt = "Create Person"
+    default_data = {"id": "Not assigned yet"}
 
 
 class PersonListModel(BaseListModel):
@@ -386,6 +514,8 @@ class PersonList(BaseList):
     tab_name_fmt = "People"
 
     model_class = PersonListModel
+    loader = "get_people"
+    details_class = PersonDetails
 
 
 class ContactInfoTypeListModel(BaseListModel):
@@ -404,8 +534,36 @@ class ContactInfoTypeList(BaseList):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.add_button = QPushButton("Add New Contact Info Type")
-        self.layout().insertWidget(0, self.add_button)
+        add_button = QPushButton("Add New Contact Info Type")
+        add_button.clicked.connect(self.add)
+        self.layout().insertWidget(0, add_button)
+
+    def add(self):
+        """
+        Prompt the user for a name, then create a new contact info type with
+        that name.
+
+        """
+        # TODO: Prevent the user from adding "Email" or "Phone" once we get
+        # around to doing validators
+        window = self.gui.main_window
+        name = dialogboxes.add_new_contact_info_type_dialog(window)
+        if name is not None:
+            self.gui.db.create_other_contact_info_type(name)
+            self.gui.database_modified.emit()
+
+    def load(self):
+        """
+        Fetch contact info type data from the database, and tack on rows for
+        email and phone so that we have all contact info types covered.
+
+        """
+        ci_types = self.gui.db.get_other_contact_info_types_usage()
+        email_address_count = self.gui.db.count_email_addresses()
+        phone_number_count = self.gui.db.count_phone_numbers()
+        ci_types.insert(0, ("", "Email", email_address_count))
+        ci_types.insert(1, ("", "Phone", phone_number_count))
+        self.data = ci_types
 
 
 class MembershipTypeListModel(BaseListModel):
@@ -421,11 +579,26 @@ class MembershipTypeList(BaseList):
     tab_name_fmt = "Manage Membership Types"
 
     model_class = MembershipTypeListModel
+    loader = "get_membership_types"
+    details_class = "MembershipPricingOptionList"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.add_button = QPushButton("Add New Membership Type")
-        self.layout().insertWidget(0, self.add_button)
+        add_button = QPushButton("Add New Membership Type")
+        add_button.clicked.connect(self.add)
+        self.layout().insertWidget(0, add_button)
+
+    def add(self):
+        """
+        Prompt the user for a name, then create a new membership type with that
+        name.
+
+        """
+        window = self.gui.main_window
+        name = dialogboxes.add_new_membership_type_dialog(window)
+        if name is not None:
+            self.gui.db.create_membership_type(name)
+            self.gui.database_modified.emit()
 
 
 class MembershipPricingOptionListModel(BaseListModel):
@@ -442,17 +615,27 @@ class MembershipPricingOptionList(BaseList):
     tab_name_fmt = "{name} Membership Pricing Options"
 
     model_class = MembershipPricingOptionListModel
+    loader = "get_membership_type_pricing_options"
+    extra_loader = "get_membership_type"
+    details_class = "MembershipPricingOptionEditor"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.add_button = QPushButton("Add New Pricing Option")
-        self.layout().insertWidget(0, self.add_button)
+        add_button = QPushButton("Add New Pricing Option")
+        add_button.clicked.connect(self.add)
+        self.layout().insertWidget(0, add_button)
+
+    def add(self):
+        """Open a Create Pricing Option tab for the current membership type."""
+        MembershipPricingOptionCreator.create_or_focus(self.gui, self.data_id)
 
 
-class MembershipPricingOptionEditor(BaseEditor):
-    """Editor widget for the Edit Pricing Option tab."""
-    tab_name_fmt = "Edit {membership_type_name} Membership Pricing Option"
+class BaseMembershipPricingOptionEditor(BaseEditor):
+    """
+    Common editor widget for the Create Pricing Option and Edit Pricing Option
+    tabs.
 
+    """
     fields = (
         ("id", "Pricing Option ID", Label),
         ("membership_type_id", "Membership Type ID", Label),
@@ -462,6 +645,45 @@ class MembershipPricingOptionEditor(BaseEditor):
     )
 
 
-class MembershipPricingOptionCreator(MembershipPricingOptionEditor):
+class MembershipPricingOptionEditor(BaseMembershipPricingOptionEditor):
+    """Editor widget for the Edit Pricing Option tab."""
+    tab_name_fmt = "Edit {membership_type_name} Membership Pricing Option"
+
+    loader = "get_membership_type_pricing_option"
+
+    def save(self):
+        """
+        Save the editor's current values to the database and close this tab.
+        Called when the save button is clicked.
+
+        """
+        self.gui.db.save_membership_type_pricing_option(self.values,
+                                                        self.data_id)
+        self.gui.database_modified.emit()
+        self.cancel()
+
+
+class MembershipPricingOptionCreator(BaseMembershipPricingOptionEditor):
     """Editor widget for the Create Pricing Option tab."""
     tab_name_fmt = "Create {membership_type_name} Membership Pricing Option"
+
+    def load(self):
+        """
+        Load the membership type's data from the database and use it for the
+        initial data set.
+
+        """
+        mtype_data = self.gui.db.get_membership_type(self.data_id)
+        self.data = {"id": "Not assigned yet",
+                     "membership_type_id": self.data_id,
+                     "membership_type_name": mtype_data["name"]}
+
+    def save(self):
+        """
+        Save the editor's current values to the database and close this tab.
+        Called when the save button is clicked.
+
+        """
+        self.gui.db.save_membership_type_pricing_option(self.values)
+        self.gui.database_modified.emit()
+        self.cancel()
