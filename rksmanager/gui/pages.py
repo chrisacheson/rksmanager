@@ -321,6 +321,7 @@ class BaseListModel(QAbstractTableModel):
 
     """
     time_format = "%l:%M %p"
+    datetime_format = "%Y-%m-%d %l:%M %p"
 
     def __init__(self):
         self.dataset = []
@@ -354,6 +355,8 @@ class BaseListModel(QAbstractTableModel):
                 return float(cell)
             if isinstance(cell, datetime.time):
                 return cell.strftime(self.time_format)
+            if isinstance(cell, datetime.datetime):
+                return cell.strftime(self.datetime_format)
             else:
                 return cell
 
@@ -777,3 +780,76 @@ class EventTypeList(BaseList):
     def add(self):
         """Open a Create Event Type tab."""
         EventTypeCreator.create_or_focus(self.gui)
+
+
+class EventDetails(BaseDetails):
+    """Viewer widget for the Event Details tab."""
+    tab_name_fmt = "Event Details ({id:d}: {name})"
+    fields = (
+        ("id", "Event ID"),
+        ("name", "Event Name"),
+        ("event_type_id", "Event Type ID"),
+        ("event_type_name", "Event Type Name"),
+        ("begin_date_time", "Start Date/Time"),
+        ("end_date_time", "End Date/Time"),
+    )
+    loader = "get_event"
+    editor_class = "EventEditor"
+
+
+class BaseEventEditor(BaseEditor):
+    """
+    Common editor widget for the Create Event and Edit Event tabs.
+
+    """
+    fields = (
+        ("id", "Event ID", Label),
+        ("name", "Event Name"),
+        ("event_type_id", "Event Type"),
+        ("begin_date_time", "Start Date/Time"),
+        ("end_date_time", "End Date/Time"),
+    )
+
+    def save(self):
+        """
+        Save the editor's current values to the database and close this tab.
+        Called when the save button is clicked.
+
+        """
+        event_id = self.gui.db.save_event(self.values, self.data_id)
+        self.gui.database_modified.emit()
+        EventDetails.create_or_focus(self.gui, event_id, replace_tab=self)
+
+
+class EventEditor(BaseEventEditor):
+    """Editor widget for the Edit Event tab."""
+    tab_name_fmt = "Edit Event ({id:d}: {name})"
+    loader = "get_event"
+
+    def cancel(self):
+        """
+        Replace the editor tab with a details tab for the same event type.
+        Called when the cancel button is clicked.
+
+        """
+        EventDetails.create_or_focus(self.gui, self.data_id, replace_tab=self)
+
+
+class EventCreator(BaseEventEditor):
+    """Editor widget for the Create Event tab."""
+    tab_name_fmt = "Create Event"
+    default_data = {"id": "Not assigned yet"}
+
+
+class EventListModel(BaseListModel):
+    """Model for holding event data to be displayed by a QTableView."""
+    headers = ("ID", "Event Name", "Event Type ID", "Event Type",
+               "Start Date/Time", "End Date/Time")
+
+
+class EventList(BaseList):
+    """Table viewer widget for the View Events tab."""
+    tab_name_fmt = "View Events"
+    model_class = EventListModel
+    loader = "get_events"
+    details_class = EventDetails

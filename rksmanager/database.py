@@ -893,6 +893,104 @@ class Database:
                 ).lastrowid
             return event_type_id
 
+    def get_events(self):
+        """
+        Get all events from the database.
+
+        Returns:
+            A list of Row objects.
+
+        """
+        with self._connection:
+            return self._connection.execute(
+                """
+                select e.id as id
+                    , e.name as name
+                    , event_type_id
+                    , t.name as event_type_name
+                    , begin_date_time
+                    , end_date_time
+                from events e
+                inner join event_types t
+                on e.event_type_id = t.id
+                """
+            ).fetchall()
+
+    def get_event(self, event_id):
+        """
+        Get the specified event from the database.
+
+        Args:
+            event_id: The ID of the event.
+
+        Returns:
+            A Row object.
+
+        """
+        with self._connection:
+            return self._connection.execute(
+                """
+                select e.id as id
+                    , e.name as name
+                    , event_type_id
+                    , t.name as event_type_name
+                    , begin_date_time
+                    , end_date_time
+                from events e
+                inner join event_types t
+                on e.event_type_id = t.id
+                where e.id = ?
+                """,
+                (event_id,),
+            ).fetchone()
+
+    def save_event(self, data, event_id=None):
+        """
+        Insert a new event type into the database or update the specified event
+        type.
+
+        Args:
+            data: A dictionary of values to be inserted/updated.
+            event_type_id: Optional ID of the event type to update. If
+                unspecified, a new event type will be inserted.
+
+        Returns:
+            The id of the event type as an integer.
+
+        """
+        with self._connection:
+            if event_id:
+                data["id"] = event_id
+                self._connection.execute(
+                    """
+                    update events
+                    set name = :name
+                        , event_type_id = :event_type_id
+                        , begin_date_time = :begin_date_time
+                        , end_date_time = :end_date_time
+                    where id = :id
+                    """,
+                    data,
+                )
+            else:
+                event_id = self._connection.execute(
+                    """
+                    insert into events (
+                        name
+                        , event_type_id
+                        , begin_date_time
+                        , end_date_time
+                    ) values (
+                        :name
+                        , :event_type_id
+                        , :begin_date_time
+                        , :end_date_time
+                    )
+                    """,
+                    data,
+                ).lastrowid
+            return event_id
+
 
 class Row(sqlite3.Row):
     """sqlite3.Row class with some extra methods."""
