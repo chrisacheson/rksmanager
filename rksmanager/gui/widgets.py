@@ -4,9 +4,11 @@ Manager go in the gui.pages module.
 
 """
 import functools
+import datetime
 
 from PySide2.QtWidgets import (QTabWidget, QWidget, QGridLayout, QLabel,
-                               QLineEdit, QTextEdit, QPushButton, QComboBox)
+                               QLineEdit, QTextEdit, QPushButton, QComboBox,
+                               QTimeEdit)
 
 
 class TabHolder(QTabWidget):
@@ -162,6 +164,43 @@ class TextEdit(ValuePropertyMixin, QTextEdit):
     """A QTextEdit with a value property."""
     getter_method = "toPlainText"
     setter_method = "setPlainText"
+
+
+class TimeLabel(QLabel):
+    """A QLabel with a value property that uses datetime.time objects."""
+    empty_value = None
+    time_format = "%l:%M %p"
+
+    def __init__(self):
+        self._value = self.empty_value
+        super().__init__()
+
+    @property
+    def value(self):
+        """Get or set the widget's current value as a datetime.time object."""
+        return self._value
+
+    @value.setter
+    def value(self, value):
+        self._value = value
+        if value is None:
+            self.setText("")
+        else:
+            self.setText(value.strftime(self.time_format))
+
+
+class TimeEdit(QTimeEdit):
+    """A QTimeEdit with a value property that uses datetime.time objects."""
+    empty_value = datetime.time()
+
+    @property
+    def value(self):
+        """Get or set the widget's current value as a datetime.time object."""
+        return self.time().toPython()
+
+    @value.setter
+    def value(self, value):
+        self.setTime(value)
 
 
 class ListLabel(QLabel):

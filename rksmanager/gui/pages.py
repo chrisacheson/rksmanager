@@ -16,7 +16,7 @@ from PySide2.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel
 
 from .widgets import (Label, LineEdit, TextEdit, ListLabel, ListEdit,
                       PrimaryItemListLabel, PrimaryItemListEdit, ComboListEdit,
-                      MappedDoubleListLabel)
+                      MappedDoubleListLabel, TimeEdit, TimeLabel)
 from . import dialogboxes
 
 
@@ -320,6 +320,8 @@ class BaseListModel(QAbstractTableModel):
     headers = ("ID", "Name", "Email Address", "Pronouns", "Notes")
 
     """
+    time_format = "%l:%M %p"
+
     def __init__(self):
         self.dataset = []
         super().__init__()
@@ -351,7 +353,7 @@ class BaseListModel(QAbstractTableModel):
                 # QTableView won't display Decimal objects, so return a float
                 return float(cell)
             if isinstance(cell, datetime.time):
-                return str(cell)
+                return cell.strftime(self.time_format)
             else:
                 return cell
 
@@ -698,7 +700,7 @@ class EventTypeDetails(BaseDetails):
     fields = (
         ("id", "Event Type ID"),
         ("name", "Event Type Name"),
-        ("default_start_time", "Default Start Time"),
+        ("default_start_time", "Default Start Time", TimeLabel),
         ("default_duration_minutes", "Default Duration (Minutes)"),
     )
     loader = "get_event_type"
@@ -713,7 +715,7 @@ class BaseEventTypeEditor(BaseEditor):
     fields = (
         ("id", "Event Type ID", Label),
         ("name", "Event Type Name"),
-        ("default_start_time", "Default Start Time"),
+        ("default_start_time", "Default Start Time", TimeEdit),
         ("default_duration_minutes", "Default Duration (Minutes)"),
     )
 
