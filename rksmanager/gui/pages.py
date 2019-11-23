@@ -8,6 +8,7 @@ gui.widgets module.
 from decimal import Decimal
 import functools
 import sys
+import datetime
 
 from PySide2.QtWidgets import (QWidget, QFormLayout, QHBoxLayout, QPushButton,
                                QTableView, QVBoxLayout, QAbstractItemView)
@@ -349,6 +350,8 @@ class BaseListModel(QAbstractTableModel):
             if isinstance(cell, Decimal):
                 # QTableView won't display Decimal objects, so return a float
                 return float(cell)
+            if isinstance(cell, datetime.time):
+                return str(cell)
             else:
                 return cell
 
@@ -687,3 +690,88 @@ class MembershipPricingOptionCreator(BaseMembershipPricingOptionEditor):
         self.gui.db.save_membership_type_pricing_option(self.values)
         self.gui.database_modified.emit()
         self.cancel()
+
+
+class EventTypeDetails(BaseDetails):
+    """Viewer widget for the Event Type Details tab."""
+    tab_name_fmt = "Event Type Details ({id:d}: {name})"
+    fields = (
+        ("id", "Event Type ID"),
+        ("name", "Event Type Name"),
+        ("default_start_time", "Default Start Time"),
+        ("default_duration_minutes", "Default Duration (Minutes)"),
+    )
+    loader = "get_event_type"
+    editor_class = "EventTypeEditor"
+
+
+class BaseEventTypeEditor(BaseEditor):
+    """
+    Common editor widget for the Create Event Type and Edit Event Type tabs.
+
+    """
+    fields = (
+        ("id", "Event Type ID", Label),
+        ("name", "Event Type Name"),
+        ("default_start_time", "Default Start Time"),
+        ("default_duration_minutes", "Default Duration (Minutes)"),
+    )
+
+    def save(self):
+        """
+        Save the editor's current values to the database and close this tab.
+        Called when the save button is clicked.
+
+        """
+        event_type_id = self.gui.db.save_event_type(self.values, self.data_id)
+        self.gui.database_modified.emit()
+        EventTypeDetails.create_or_focus(self.gui, event_type_id,
+                                         replace_tab=self)
+
+
+class EventTypeEditor(BaseEventTypeEditor):
+    """Editor widget for the Edit Event Type tab."""
+    tab_name_fmt = "Edit Event Type ({id:d}: {name})"
+    loader = "get_event_type"
+
+    def cancel(self):
+        """
+        Replace the editor tab with a details tab for the same event type.
+        Called when the cancel button is clicked.
+
+        """
+        EventTypeDetails.create_or_focus(self.gui, self.data_id,
+                                         replace_tab=self)
+
+
+class EventTypeCreator(BaseEventTypeEditor):
+    """Editor widget for the Create Event Type tab."""
+    tab_name_fmt = "Create Event Type"
+    default_data = {"id": "Not assigned yet"}
+
+
+class EventTypeListModel(BaseListModel):
+    """
+    Model for holding event type data to be displayed by a QTableView.
+
+    """
+    headers = ("ID", "Event Type", "Default Start Time",
+               "Default Duration (Minutes)")
+
+
+class EventTypeList(BaseList):
+    """Table viewer widget for the Manage Event Types tab."""
+    tab_name_fmt = "Manage Event Types"
+    model_class = EventTypeListModel
+    loader = "get_event_types"
+    details_class = EventTypeDetails
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        add_button = QPushButton("Add New Event Type")
+        add_button.clicked.connect(self.add)
+        self.layout().insertWidget(0, add_button)
+
+    def add(self):
+        """Open a Create Event Type tab."""
+        EventTypeCreator.create_or_focus(self.gui)

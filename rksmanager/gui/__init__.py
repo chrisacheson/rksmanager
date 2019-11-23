@@ -13,7 +13,7 @@ import rksmanager.database
 from . import dialogboxes
 from .widgets import TabHolder
 from .pages import (PersonList, PersonCreator, ContactInfoTypeList,
-                    MembershipTypeList)
+                    MembershipTypeList, EventTypeList)
 
 
 class Gui(QApplication):
@@ -104,6 +104,25 @@ class Gui(QApplication):
             menu=people_menu,
             triggered=lambda: MembershipTypeList.create_or_focus(gui=self),
         )
+
+        events_menu = menu_bar.addMenu("Events")
+        events_menu.setEnabled(False)
+        self.database_is_open.connect(events_menu.setEnabled)
+
+        """
+        add_action(text="Create Event...",
+                   menu=events_menu,
+                   triggered=lambda: EventCreator.create_or_focus(gui=self))
+        add_action(text="View Events",
+                   menu=events_menu,
+                   triggered=lambda: EventList.create_or_focus(gui=self))
+        """
+
+        events_menu.addSeparator()
+
+        add_action(text="Manage Event Types",
+                   menu=events_menu,
+                   triggered=lambda: EventTypeList.create_or_focus(gui=self))
 
     def create_or_open_database(self, filename=None):
         """

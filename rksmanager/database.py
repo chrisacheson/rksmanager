@@ -806,6 +806,93 @@ class Database:
                 ).lastrowid
             return pricing_option_id
 
+    def get_event_types(self):
+        """
+        Get all event types from the database.
+
+        Returns:
+            A list of Row objects.
+
+        """
+        with self._connection:
+            return self._connection.execute(
+                """
+                select id
+                    , name
+                    , default_start_time
+                    , default_duration_minutes
+                from event_types
+                """
+            ).fetchall()
+
+    def get_event_type(self, event_type_id):
+        """
+        Get the specified event type from the database.
+
+        Args:
+            event_type_id: The ID of the event type.
+
+        Returns:
+            A Row object.
+
+        """
+        with self._connection:
+            return self._connection.execute(
+                """
+                select id
+                    , name
+                    , default_start_time
+                    , default_duration_minutes
+                from event_types
+                where id = ?
+                """,
+                (event_type_id,),
+            ).fetchone()
+
+    def save_event_type(self, data, event_type_id=None):
+        """
+        Insert a new event type into the database or update the specified event
+        type.
+
+        Args:
+            data: A dictionary of values to be inserted/updated.
+            event_type_id: Optional ID of the event type to update. If
+                unspecified, a new event type will be inserted.
+
+        Returns:
+            The id of the event type as an integer.
+
+        """
+        with self._connection:
+            if event_type_id:
+                data["id"] = event_type_id
+                self._connection.execute(
+                    """
+                    update event_types
+                    set name = :name
+                        , default_start_time = :default_start_time
+                        , default_duration_minutes = :default_duration_minutes
+                    where id = :id
+                    """,
+                    data,
+                )
+            else:
+                event_type_id = self._connection.execute(
+                    """
+                    insert into event_types (
+                        name
+                        , default_start_time
+                        , default_duration_minutes
+                    ) values (
+                        :name
+                        , :default_start_time
+                        , :default_duration_minutes
+                    )
+                    """,
+                    data,
+                ).lastrowid
+            return event_type_id
+
 
 class Row(sqlite3.Row):
     """sqlite3.Row class with some extra methods."""
