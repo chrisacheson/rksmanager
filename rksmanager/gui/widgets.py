@@ -8,7 +8,7 @@ import datetime
 
 from PySide2.QtWidgets import (QTabWidget, QWidget, QGridLayout, QLabel,
                                QLineEdit, QTextEdit, QPushButton, QComboBox,
-                               QTimeEdit)
+                               QTimeEdit, QDateTimeEdit)
 
 
 class TabHolder(QTabWidget):
@@ -166,10 +166,42 @@ class TextEdit(ValuePropertyMixin, QTextEdit):
     setter_method = "setPlainText"
 
 
+class ComboBox(QComboBox):
+    """A QComboBox with value and extra_data properties."""
+    empty_value = None
+
+    @property
+    def value(self):
+        """Get or set the widget's current value as an integer."""
+        return self.currentData()
+
+    @value.setter
+    def value(self, value):
+        index = self.findData(value)
+        if index == -1:
+            index = 0
+        self.setCurrentIndex(index)
+
+    @property
+    def extra_data(self):
+        """The combo box's items as a list of (integer, string) tuples."""
+        items = []
+        for i in range(1, self.count()):
+            items.append((self.itemData(i), self.itemText(i)))
+        return items
+
+    @extra_data.setter
+    def extra_data(self, extra_data):
+        self.clear()
+        self.addItem("", None)
+        for combo_data, combo_text, *_ in extra_data:
+            self.addItem(combo_text, combo_data)
+
+
 class TimeLabel(QLabel):
     """A QLabel with a value property that uses datetime.time objects."""
     empty_value = None
-    time_format = "%l:%M %p"
+    display_format = "%l:%M %p"
 
     def __init__(self):
         self._value = self.empty_value
@@ -186,7 +218,12 @@ class TimeLabel(QLabel):
         if value is None:
             self.setText("")
         else:
-            self.setText(value.strftime(self.time_format))
+            self.setText(value.strftime(self.display_format))
+
+
+class DateTimeLabel(TimeLabel):
+    """A TimeLabel for datetime.datetime objects."""
+    display_format = "%Y-%m-%d %l:%M %p"
 
 
 class TimeEdit(QTimeEdit):
@@ -201,6 +238,26 @@ class TimeEdit(QTimeEdit):
     @value.setter
     def value(self, value):
         self.setTime(value)
+
+
+class DateTimeEdit(QDateTimeEdit):
+    """
+    A QDateTimeEdit with a value property that uses datetime.datetime objects.
+
+    """
+    empty_value = datetime.datetime(2000, 1, 1)
+
+    @property
+    def value(self):
+        """
+        Get or set the widget's current value as a datetime.datetime object.
+
+        """
+        return self.dateTime().toPython()
+
+    @value.setter
+    def value(self, value):
+        self.setDateTime(value)
 
 
 class ListLabel(QLabel):

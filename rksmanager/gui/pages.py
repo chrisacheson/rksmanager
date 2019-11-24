@@ -16,7 +16,8 @@ from PySide2.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel
 
 from .widgets import (Label, LineEdit, TextEdit, ListLabel, ListEdit,
                       PrimaryItemListLabel, PrimaryItemListEdit, ComboListEdit,
-                      MappedDoubleListLabel, TimeEdit, TimeLabel)
+                      MappedDoubleListLabel, TimeEdit, TimeLabel, DateTimeEdit,
+                      DateTimeLabel, ComboBox)
 from . import dialogboxes
 
 
@@ -64,11 +65,13 @@ class BasePage(QWidget):
                     linked_class = getattr(this_module, linked_class)
                     setattr(self, linked_class_attribute, linked_class)
 
+        # Combo boxes on such require extra_data to be set before their values
+        # can be set
+        self.load_extra()
         if hasattr(self, "default_data"):
             self.data = self.default_data
         self.load()
         gui.database_modified.connect(self.load)
-        self.load_extra()
 
     def load(self):
         """
@@ -790,8 +793,8 @@ class EventDetails(BaseDetails):
         ("name", "Event Name"),
         ("event_type_id", "Event Type ID"),
         ("event_type_name", "Event Type Name"),
-        ("begin_date_time", "Start Date/Time"),
-        ("end_date_time", "End Date/Time"),
+        ("begin_date_time", "Start Date/Time", DateTimeLabel),
+        ("end_date_time", "End Date/Time", DateTimeLabel),
     )
     loader = "get_event"
     editor_class = "EventEditor"
@@ -805,10 +808,14 @@ class BaseEventEditor(BaseEditor):
     fields = (
         ("id", "Event ID", Label),
         ("name", "Event Name"),
-        ("event_type_id", "Event Type"),
-        ("begin_date_time", "Start Date/Time"),
-        ("end_date_time", "End Date/Time"),
+        ("event_type_id", "Event Type", ComboBox),
+        ("begin_date_time", "Start Date/Time", DateTimeEdit),
+        ("end_date_time", "End Date/Time", DateTimeEdit),
     )
+
+    def load_extra(self):
+        """Fetch event types from the database."""
+        self.extra_data = {"event_type_id": self.gui.db.get_event_types()}
 
     def save(self):
         """
