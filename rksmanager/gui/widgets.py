@@ -850,18 +850,19 @@ class ComboListEdit(QWidget):
         self.num_items = 0
         self._mapping = dict()
         self.layout = GridLayout()
-        self._combo_box = QComboBox()
-        self._text_box = QLineEdit()
+        self._combo_box = ComboBox()
+        self._text_box = LineEdit()
 
         # Add button callback. Appends the selected data in the combo box and
         # the text in the text box to the list and resets both.
         def add():
-            text = self._text_box.text()
-            if self._combo_box.currentIndex() == 0 or text == "":
+            text = self._text_box.value
+            combo_value = self._combo_box.value
+            if combo_value is None or text == "":
                 return
-            self.append((self._combo_box.currentData(), text))
-            self._combo_box.setCurrentIndex(0)
-            self._text_box.setText("")
+            self.append((combo_value, text))
+            self._combo_box.value = None
+            self._text_box.value = None
         add_button = QPushButton("+")
         add_button.clicked.connect(add)
 
@@ -891,11 +892,8 @@ class ComboListEdit(QWidget):
         #   button: The remove button widget that was clicked. Used to find out
         #       which row to remove.
         def remove(button):
-            row_index, _, _, _ = self.layout.get_widget_coordinates(button)
-            combo_data, text = self.pop(row_index)
-            combo_index = self._combo_box.findData(combo_data)
-            self._combo_box.setCurrentIndex(combo_index)
-            self._text_box.setText(text)
+            row_index, *_ = self.layout.get_widget_coordinates(button)
+            self._combo_box.value, self._text_box.value = self.pop(row_index)
         remove_button = QPushButton("-")
         remove_button.clicked.connect(functools.partial(remove, remove_button))
 
@@ -989,7 +987,4 @@ class ComboListEdit(QWidget):
         self._mapping = dict(extra_data)
         for i in range(self.num_items):
             self.layout.itemAtPosition(i, 0).widget().mapping = self._mapping
-        self._combo_box.clear()
-        self._combo_box.addItem("")
-        for combo_data, combo_text in extra_data:
-            self._combo_box.addItem(combo_text, combo_data)
+        self._combo_box.extra_data = extra_data
