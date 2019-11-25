@@ -17,7 +17,8 @@ from PySide2.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel
 from .widgets import (Label, LineEdit, TextEdit, ListLabel, ListEdit,
                       PrimaryItemListLabel, PrimaryItemListEdit, ComboListEdit,
                       MappedDoubleListLabel, TimeEdit, TimeLabel, DateTimeEdit,
-                      DateTimeLabel, ComboBox)
+                      DateTimeLabel, ComboBox, LineEditWithSuggest,
+                      DateTimeEditWithSuggest)
 from . import dialogboxes
 
 
@@ -173,7 +174,7 @@ class BaseEditor(BasePage):
 
     def __init__(self, *args, **kwargs):
         self._data = dict()
-        self._data_widgets = dict()
+        self.data_widgets = dict()
         layout = QFormLayout()
         for i, field in enumerate(self.fields):
             if len(field) > 2:
@@ -183,7 +184,7 @@ class BaseEditor(BasePage):
                 widget_type = self.default_widget
             widget = widget_type()
             layout.addRow(label, widget)
-            self._data_widgets[field_id] = widget
+            self.data_widgets[field_id] = widget
         super().__init__(*args, **kwargs)
         self.setLayout(layout)
         self.place_buttons()
@@ -222,9 +223,9 @@ class BaseEditor(BasePage):
 
     @data.setter
     def data(self, data):
-        keys = self._data_widgets.keys() & data.keys()
+        keys = self.data_widgets.keys() & data.keys()
         for key in keys:
-            widget = self._data_widgets[key]
+            widget = self.data_widgets[key]
             if self._data.get(key, widget.empty_value) == widget.value:
                 widget.value = data[key]
         self._data = data
@@ -240,15 +241,15 @@ class BaseEditor(BasePage):
 
         """
         values = dict()
-        for field_id, widget in self._data_widgets.items():
+        for field_id, widget in self.data_widgets.items():
             values[field_id] = widget.value
         return values
 
     @values.setter
     def values(self, values):
-        keys = self._data_widgets.keys() & values.keys()
+        keys = self.data_widgets.keys() & values.keys()
         for key in keys:
-            self._data_widgets[key].value = values[key]
+            self.data_widgets[key].value = values[key]
 
     @property
     def extra_data(self):
@@ -261,15 +262,15 @@ class BaseEditor(BasePage):
 
         """
         extra_data = dict()
-        for field_id, widget in self._data_widgets.items():
+        for field_id, widget in self.data_widgets.items():
             extra_data[field_id] = getattr(widget, "extra_data", None)
         return extra_data
 
     @extra_data.setter
     def extra_data(self, extra_data):
-        keys = self._data_widgets.keys() & extra_data.keys()
+        keys = self.data_widgets.keys() & extra_data.keys()
         for key in keys:
-            self._data_widgets[key].extra_data = extra_data[key]
+            self.data_widgets[key].extra_data = extra_data[key]
 
 
 class BaseDetails(BaseEditor):
@@ -807,11 +808,45 @@ class BaseEventEditor(BaseEditor):
     """
     fields = (
         ("id", "Event ID", Label),
-        ("name", "Event Name"),
         ("event_type_id", "Event Type", ComboBox),
-        ("begin_date_time", "Start Date/Time", DateTimeEdit),
+        ("begin_date_time", "Start Date/Time", DateTimeEditWithSuggest),
         ("end_date_time", "End Date/Time", DateTimeEdit),
+        ("name", "Event Name", LineEditWithSuggest),
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        begin_dt = self.data_widgets["begin_date_time"]
+        begin_dt.suggest_button.clicked.connect(self.suggest_begin_date_time)
+        begin_dt.the_widget.dateTimeChanged.connect(self.suggest_end_date_time)
+        self.data_widgets["name"].suggest_button.clicked.connect(
+            self.suggest_name
+        )
+
+    def suggest_begin_date_time(self):
+        event_type_id = self.data_widgets["event_type_id"].value
+        if event_type_id:
+            event_type = self.gui.db.get_event_type(event_type_id)
+            self.data_widgets["begin_date_time"].the_widget.setTime(
+                event_type["default_start_time"]
+            )
+
+    def suggest_end_date_time(self):
+        event_type_id = self.data_widgets["event_type_id"].value
+        if event_type_id:
+            event_type = self.gui.db.get_event_type(event_type_id)
+            begin = self.data_widgets["begin_date_time"].value
+            duration = event_type["default_duration_minutes"]
+            end = begin + datetime.timedelta(minutes=duration)
+            self.data_widgets["end_date_time"].value = end
+
+    def suggest_name(self):
+        event_type_combo = self.data_widgets["event_type_id"]
+        if event_type_combo.value:
+            event_type_name = event_type_combo.currentText()
+            month = self.data_widgets["begin_date_time"].value.strftime("%B")
+            name = "{} {}".format(month, event_type_name)
+            self.data_widgets["name"].value = name
 
     def load_extra(self):
         """Fetch event types from the database."""

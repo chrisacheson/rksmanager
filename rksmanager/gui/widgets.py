@@ -8,7 +8,9 @@ import datetime
 
 from PySide2.QtWidgets import (QTabWidget, QWidget, QGridLayout, QLabel,
                                QLineEdit, QTextEdit, QPushButton, QComboBox,
-                               QTimeEdit, QDateTimeEdit)
+                               QTimeEdit, QDateTimeEdit, QHBoxLayout)
+
+from ..functions import get_nested_attr
 
 
 class TabHolder(QTabWidget):
@@ -133,7 +135,7 @@ class ValuePropertyMixin:
         will assign it an empty string.
 
         """
-        getter = getattr(self, self.getter_method)
+        getter = get_nested_attr(self, self.getter_method)
         v = getter()
         if v == "":
             return None
@@ -142,7 +144,7 @@ class ValuePropertyMixin:
 
     @value.setter
     def value(self, value):
-        setter = getattr(self, self.setter_method)
+        setter = get_nested_attr(self, self.setter_method)
         if value is None:
             setter("")
         else:
@@ -158,6 +160,39 @@ class Label(ValuePropertyMixin, QLabel):
 
 class LineEdit(ValuePropertyMixin, QLineEdit):
     """A QLineEdit with a value property."""
+
+
+class WidgetWithSuggest(QWidget):
+    """
+    Base class for widgets with a "Suggest" button. Subclasses should set the
+    widget_type attribute to the desired widget class (which must have a value
+    property).
+
+    """
+    def __init__(self):
+        super().__init__()
+        layout = QHBoxLayout()
+        self.the_widget = self.widget_type()
+        layout.addWidget(self.the_widget)
+        layout.setStretch(0, 1)
+        self.suggest_button = QPushButton("Suggest")
+        layout.addWidget(self.suggest_button)
+        self.setLayout(layout)
+        self.empty_value = self.widget_type.empty_value
+
+    @property
+    def value(self):
+        """The value of the underlying widget."""
+        return self.the_widget.value
+
+    @value.setter
+    def value(self, value):
+        self.the_widget.value = value
+
+
+class LineEditWithSuggest(WidgetWithSuggest):
+    """A LineEdit with a "Suggest" button."""
+    widget_type = LineEdit
 
 
 class TextEdit(ValuePropertyMixin, QTextEdit):
@@ -245,7 +280,12 @@ class DateTimeEdit(QDateTimeEdit):
     A QDateTimeEdit with a value property that uses datetime.datetime objects.
 
     """
-    empty_value = datetime.datetime(2000, 1, 1)
+    empty_value = datetime.datetime.combine(datetime.date.today(),
+                                            datetime.time.min)
+
+    def __init__(self):
+        super().__init__()
+        self.value = self.empty_value
 
     @property
     def value(self):
@@ -258,6 +298,11 @@ class DateTimeEdit(QDateTimeEdit):
     @value.setter
     def value(self, value):
         self.setDateTime(value)
+
+
+class DateTimeEditWithSuggest(WidgetWithSuggest):
+    """A DateTimeEdit with a "Suggest" button."""
+    widget_type = DateTimeEdit
 
 
 class ListLabel(QLabel):
