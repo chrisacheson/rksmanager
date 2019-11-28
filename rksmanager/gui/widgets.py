@@ -277,7 +277,8 @@ class TimeEdit(QTimeEdit):
 
 class DateTimeEdit(QDateTimeEdit):
     """
-    A QDateTimeEdit with a value property that uses datetime.datetime objects.
+    A QDateTimeEdit with a value property that uses datetime.datetime objects
+    and has calendarPopup enabled by default.
 
     """
     empty_value = datetime.datetime.combine(datetime.date.today(),
@@ -286,6 +287,7 @@ class DateTimeEdit(QDateTimeEdit):
     def __init__(self):
         super().__init__()
         self.value = self.empty_value
+        self.setCalendarPopup(True)
 
     @property
     def value(self):
