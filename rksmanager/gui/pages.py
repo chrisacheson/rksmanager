@@ -570,7 +570,7 @@ class ContactInfoTypeList(BaseList):
         email and phone so that we have all contact info types covered.
 
         """
-        ci_types = self.gui.db.get_other_contact_info_types_usage()
+        ci_types = self.gui.db.get_other_contact_info_types()
         email_address_count = self.gui.db.count_email_addresses()
         phone_number_count = self.gui.db.count_phone_numbers()
         ci_types.insert(0, ("", "Email", email_address_count))

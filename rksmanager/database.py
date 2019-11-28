@@ -549,23 +549,6 @@ class Database:
 
     def get_other_contact_info_types(self):
         """
-        Get all "other" contact info types from the database.
-
-        Returns:
-            A list of Row objects.
-
-        """
-        with self._connection:
-            return self._connection.execute(
-                """
-                select id
-                    , name
-                from other_contact_info_types
-                """
-            ).fetchall()
-
-    def get_other_contact_info_types_usage(self):
-        """
         Get all "other" contact info types and the usage count for each type.
 
         Returns:

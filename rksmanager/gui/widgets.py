@@ -986,7 +986,9 @@ class ComboListEdit(QWidget):
 
     @extra_data.setter
     def extra_data(self, extra_data):
-        self._mapping = dict(extra_data)
+        self._mapping = dict()
+        for combo_data, combo_text, *_ in extra_data:
+            self._mapping[combo_data] = combo_text
         for i in range(self.num_items):
             self.layout.itemAtPosition(i, 0).widget().mapping = self._mapping
         self._combo_box.extra_data = extra_data
