@@ -136,16 +136,22 @@ create table people_payments (
     id integer primary key
     , person_id integer not null references people(id)
     , date_time timestamp not null
-    , amount decimal_text not null
     , at_event_id references events(id) -- Event that this payment was received
                                         -- at
+);
+
+-- Individual charges that a payment covers
+create table payments_items (
+    id integer primary key
+    , payment_id integer not null references people_payments(id)
+    , amount decimal_text not null
 );
 
 -- Dues payments made on a membership
 create table memberships_dues_payments (
     id integer primary key
     , membership_id integer not null references people_memberships(id)
-    , payment_id integer not null references people_payments(id)
+    , payment_item_id integer not null references payments_items(id)
     , original_end_date date not null -- Date that the membership was set to
                                       -- expire on before the payment was made
     , new_end_date date not null -- New expiration date after applying the
@@ -156,7 +162,7 @@ create table memberships_dues_payments (
 create table events_door_fee_payments (
     id integer primary key
     , event_id integer not null references events(id)
-    , payment_id integer not null references people_payments(id)
+    , payment_item_id integer not null references payments_items(id)
 );
 
 -- Events that a person has attended
