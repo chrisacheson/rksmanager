@@ -100,6 +100,7 @@ create table event_types (
     , name text not null unique
     , default_start_time timeofday_text
     , default_duration_minutes integer
+    , default_nonmember_door_fee decimal_text
 );
 
 -- Default door fee for an event type, per membership type
@@ -118,6 +119,9 @@ create table events (
     , name text not null
     , begin_date_time timestamp not null
     , end_date_time timestamp not null
+    , nonmember_door_fee decimal_text -- Only needs to be specified if
+                                      -- different than the default nonmember
+                                      -- door fee for the event type
 );
 
 -- Door fee for a particular event, per membership type. Only needs to be used

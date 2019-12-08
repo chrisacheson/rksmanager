@@ -821,6 +821,7 @@ class Database:
                     , name
                     , default_start_time
                     , default_duration_minutes
+                    , default_nonmember_door_fee
                 from event_types
                 """
             ).fetchall()
@@ -843,6 +844,7 @@ class Database:
                     , name
                     , default_start_time
                     , default_duration_minutes
+                    , default_nonmember_door_fee
                 from event_types
                 where id = ?
                 """,
@@ -872,6 +874,8 @@ class Database:
                     set name = :name
                         , default_start_time = :default_start_time
                         , default_duration_minutes = :default_duration_minutes
+                        , default_nonmember_door_fee
+                            = :default_nonmember_door_fee
                     where id = :id
                     """,
                     data,
@@ -883,10 +887,12 @@ class Database:
                         name
                         , default_start_time
                         , default_duration_minutes
+                        , default_nonmember_door_fee
                     ) values (
                         :name
                         , :default_start_time
                         , :default_duration_minutes
+                        , :default_nonmember_door_fee
                     )
                     """,
                     data,
@@ -936,6 +942,8 @@ class Database:
                     , t.name as event_type_name
                     , begin_date_time
                     , end_date_time
+                    , default_nonmember_door_fee
+                    , nonmember_door_fee
                 from events e
                 inner join event_types t
                 on e.event_type_id = t.id
@@ -968,6 +976,7 @@ class Database:
                         , event_type_id = :event_type_id
                         , begin_date_time = :begin_date_time
                         , end_date_time = :end_date_time
+                        , nonmember_door_fee = :nonmember_door_fee
                     where id = :id
                     """,
                     data,
@@ -980,11 +989,13 @@ class Database:
                         , event_type_id
                         , begin_date_time
                         , end_date_time
+                        , nonmember_door_fee
                     ) values (
                         :name
                         , :event_type_id
                         , :begin_date_time
                         , :end_date_time
+                        , :nonmember_door_fee
                     )
                     """,
                     data,

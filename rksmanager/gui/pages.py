@@ -709,6 +709,7 @@ class EventTypeDetails(BaseDetails):
         ("name", "Event Type Name"),
         ("default_start_time", "Default Start Time", TimeLabel),
         ("default_duration_minutes", "Default Duration (Minutes)"),
+        ("default_nonmember_door_fee", "Default Non-Member Door Fee"),
     )
     loader = "get_event_type"
     editor_class = "EventTypeEditor"
@@ -724,6 +725,7 @@ class BaseEventTypeEditor(BaseEditor):
         ("name", "Event Type Name"),
         ("default_start_time", "Default Start Time", TimeEdit),
         ("default_duration_minutes", "Default Duration (Minutes)"),
+        ("default_nonmember_door_fee", "Default Non-Member Door Fee"),
     )
 
     def save(self):
@@ -796,6 +798,11 @@ class EventDetails(BaseDetails):
         ("event_type_name", "Event Type Name"),
         ("begin_date_time", "Start Date/Time", DateTimeLabel),
         ("end_date_time", "End Date/Time", DateTimeLabel),
+        (
+            "default_nonmember_door_fee",
+            "Event Type Default Non-Member Door Fee",
+        ),
+        ("nonmember_door_fee", "Non-Member Door Fee"),
     )
     loader = "get_event"
     editor_class = "EventEditor"
@@ -812,16 +819,35 @@ class BaseEventEditor(BaseEditor):
         ("begin_date_time", "Start Date/Time", DateTimeEditWithSuggest),
         ("end_date_time", "End Date/Time", DateTimeEdit),
         ("name", "Event Name", LineEditWithSuggest),
+        (
+            "default_nonmember_door_fee",
+            "Event Type Default Non-Member Door Fee",
+            Label,
+        ),
+        ("nonmember_door_fee", "Non-Member Door Fee"),
     )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.data_widgets["event_type_id"].currentIndexChanged.connect(
+            self.change_default_nonmember_door_fee
+        )
         begin_dt = self.data_widgets["begin_date_time"]
         begin_dt.suggest_button.clicked.connect(self.suggest_begin_date_time)
         begin_dt.the_widget.dateTimeChanged.connect(self.suggest_end_date_time)
         self.data_widgets["name"].suggest_button.clicked.connect(
             self.suggest_name
         )
+
+    def change_default_nonmember_door_fee(self):
+        event_type_id = self.data_widgets["event_type_id"].value
+        if event_type_id:
+            event_type = self.gui.db.get_event_type(event_type_id)
+            self.data_widgets["default_nonmember_door_fee"].value = (
+                event_type["default_nonmember_door_fee"]
+            )
+        else:
+            self.data_widgets["default_nonmember_door_fee"].value = None
 
     def suggest_begin_date_time(self):
         event_type_id = self.data_widgets["event_type_id"].value
