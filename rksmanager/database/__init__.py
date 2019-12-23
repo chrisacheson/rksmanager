@@ -302,10 +302,12 @@ class Database:
                            filter_value, old_items, new_items):
         if isinstance(update_column, str):
             update_columns = (update_column,)
+        else:
+            update_columns = update_column
+        if len(update_columns) == 1:
             new_tuples = [(new,) for new in new_items]
             old_tuples = [(old,) for old in old_items]
         else:
-            update_columns = update_column
             new_tuples = new_items
             old_tuples = old_items
         old_tuples = set(old_tuples)
@@ -396,6 +398,9 @@ class Database:
     #   table: Name of the table to insert into.
     #   column_values: A dictionary of column names and corresponding values to
     #       insert.
+    #
+    # Returns:
+    #   The ID of the inserted row.
     def _dynamic_insert(self, table, column_values):
         column_names = column_values.keys()
         column_names_sql = ",".join(column_names)
@@ -412,7 +417,7 @@ class Database:
         ).format(table=table,
                  column_names_sql=column_names_sql,
                  insert_params_sql=insert_params_sql)
-        self._connection.execute(query, column_values)
+        return self._connection.execute(query, column_values).lastrowid
 
     # Build and execute a dynamic SQL delete statement.
     #
