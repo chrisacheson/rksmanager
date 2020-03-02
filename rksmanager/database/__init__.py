@@ -114,12 +114,16 @@ class Database:
         """
         migration_name_regex = re.compile(r"0*([0-9]+)-.*\.sql")
 
-        # rks_manager/rksmanager/database.py
+        # TODO: Should probably have run.py set a base_project_dir variable
+        # instead of deriving it relative to this file.
+        # rks_manager/rksmanager/database/__init__.py
         this_file = pathlib.Path(__file__)
+        # rks_manager/rksmanager/database/
+        database_package_dir = this_file.parent
         # rks_manager/rksmanager/
-        this_file_dir = this_file.parent
+        rksmanager_package_dir = database_package_dir.parent
         # rks_manager/
-        base_project_dir = this_file_dir.parent
+        base_project_dir = rksmanager_package_dir.parent
         # rks_manager/migrations/
         migrations_dir = base_project_dir / "migrations"
 
